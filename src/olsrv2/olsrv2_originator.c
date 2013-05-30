@@ -57,7 +57,7 @@
 /* prototypes */
 static struct olsrv2_originator_set_entry *_remember_removed_originator(
     struct netaddr *originator, uint64_t vtime);
-static void _set_originator(int af_type, struct netaddr *setting, const struct netaddr *new);
+static void _set_originator(int af_type, struct netaddr *setting, const struct netaddr *new_originator);
 static void _cb_originator_entry_vtime(void *);
 
 /* originator set class and timer */
@@ -199,7 +199,7 @@ _remember_removed_originator(struct netaddr *originator, uint64_t vtime) {
  * @param originator new originator
  */
 static void
-_set_originator(int af_type, struct netaddr *setting, const struct netaddr *new) {
+_set_originator(int af_type, struct netaddr *setting, const struct netaddr *new_originator) {
   struct olsrv2_originator_set_entry *entry;
 
   if (netaddr_get_address_family(setting) != AF_UNSPEC) {
@@ -207,17 +207,17 @@ _set_originator(int af_type, struct netaddr *setting, const struct netaddr *new)
     _remember_removed_originator(setting, olsrv2_get_old_originator_validity());
   }
 
-  memcpy(setting, new, sizeof(*setting));
+  memcpy(setting, new_originator, sizeof(*setting));
 
-  /* remove new originator from set */
-  entry = olsrv2_originator_get_entry(new);
+  /* remove new_originator originator from set */
+  entry = olsrv2_originator_get_entry(new_originator);
   if (entry) {
     _cb_originator_entry_vtime(entry);
   }
 
   /* update NHDP originator */
-  if (netaddr_get_address_family(new) != AF_UNSPEC) {
-    nhdp_set_originator(new);
+  if (netaddr_get_address_family(new_originator) != AF_UNSPEC) {
+    nhdp_set_originator(new_originator);
   }
   else {
     nhdp_reset_originator(af_type);
