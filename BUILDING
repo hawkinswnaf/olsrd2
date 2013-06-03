@@ -1,4 +1,6 @@
-To build the OLSR.org V2 routing agent open a shell:
+To build the OLSR.org V2 routing agent you first have to build the 
+OLSR.org network API (OONF-API). Then you open a shell and run the
+following commands.
 
 > cd build
 > cmake ..
@@ -10,3 +12,7 @@ be already reasonable.
 
 > cd build
 > ccmake ..
+
+If you want to crosscompile the routing agent, you will find a few
+examples in the cmake/cross. To compile the code with OpenWRT, you
+can use the repository (or a local copy) as an OpenWRT feed.
