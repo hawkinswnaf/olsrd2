@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 2.8.5 FATAL_ERROR)
 ###################################
 
 # set OONF library version
-set (OONF_VERSION "0.2.0")
+set (OONF_VERSION "0.2.2")
 
 # set cached variables
 include (./cmake/app_config.cmake)
