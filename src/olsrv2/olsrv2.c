@@ -591,6 +591,8 @@ _parse_lan_parameters(struct _lan_data *dst, const char *src) {
   unsigned ext;
 
   ptr = src;
+  memset(dst, 0, sizeof(*dst));
+
   while (ptr != NULL) {
     next = str_cpynextword(buffer, ptr, sizeof(buffer));
 
