@@ -68,6 +68,10 @@
 #define OLSRV2_NAME "olsrv2"
 #define _LOCAL_ATTACHED_NETWORK_KEY "lan"
 
+#define LAN_DEFAULT_DOMAIN   0
+#define LAN_DEFAULT_METRIC   1
+#define LAN_DEFAULT_DISTANCE 2
+
 struct _config {
   uint64_t tc_interval;
   uint64_t tc_validity;
@@ -591,7 +595,9 @@ _parse_lan_parameters(struct _lan_data *dst, const char *src) {
   unsigned ext;
 
   ptr = src;
-  memset(dst, 0, sizeof(*dst));
+  dst->domain = nhdp_domain_get_by_ext(LAN_DEFAULT_DOMAIN);
+  dst->metric = LAN_DEFAULT_METRIC;
+  dst->dist   = LAN_DEFAULT_DISTANCE;
 
   while (ptr != NULL) {
     next = str_cpynextword(buffer, ptr, sizeof(buffer));
