@@ -55,7 +55,7 @@
 #define OLSRV2_ROUTABLE_IPV4 "-169.254.0.0/16\0-127.0.0.0/8\0-224.0.0.0/12\0"
 #define OLSRV2_ROUTABLE_IPV6 "-fe80::/10\0-::1\0-ff00::/8\0"
 
-#define CFG_VALIDATE_LAN(p_name, p_def, p_help, args...)         _CFG_VALIDATE(p_name, p_def, p_help, .cb_validate = olsrv2_validate_lan, ##args )
+#define CFG_VALIDATE_LAN(p_name, p_def, p_help, args...)         _CFG_VALIDATE(p_name, p_def, p_help, .cb_validate = olsrv2_validate_lan, .validate_param = {{.i8 = {AF_INET, AF_INET6, -1,-1, -1}}, {.b = true}}, ##args )
 
 #define LOG_OLSRV2 olsrv2_subsystem.logging
 EXPORT struct oonf_subsystem olsrv2_subsystem;
