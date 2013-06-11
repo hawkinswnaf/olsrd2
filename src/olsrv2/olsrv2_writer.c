@@ -105,7 +105,7 @@ static struct oonf_class_extension _domain_listener = {
   .cb_add = _cb_initialize_gatewaytlv,
 };
 
-static int _send_msg_type;
+static int _send_msg_af;
 
 static struct oonf_rfc5444_protocol *_protocol;
 
@@ -192,10 +192,10 @@ _send_tc(int af_type) {
 
   originator = olsrv2_originator_get(af_type);
   if (netaddr_get_address_family(originator) == af_type) {
-    _send_msg_type = af_type;
+    _send_msg_af = af_type;
     OONF_INFO(LOG_OLSRV2_W, "Emit IPv%d TC message.", af_type == AF_INET ? 4 : 6);
     oonf_rfc5444_send_all(_protocol, RFC5444_MSGTYPE_TC, _cb_tc_interface_selector);
-    _send_msg_type = AF_UNSPEC;
+    _send_msg_af = AF_UNSPEC;
   }
 }
 
@@ -224,7 +224,7 @@ _cb_addMessageHeader(struct rfc5444_writer *writer,
     struct rfc5444_writer_message *message) {
   const struct netaddr *orig;
 
-  orig = olsrv2_originator_get(_send_msg_type);
+  orig = olsrv2_originator_get(_send_msg_af);
 
   /* initialize message header */
   rfc5444_writer_set_msg_header(writer, message, true, true, true, true);
@@ -297,11 +297,11 @@ _cb_tc_interface_selector(struct rfc5444_writer *writer __attribute__((unused)),
       /* link cannot receive this targets address type */
       continue;
     }
-    if (netaddr_get_address_family(&lnk->neigh->originator) == _send_msg_type
+    if (netaddr_get_address_family(&lnk->neigh->originator) == _send_msg_af
         && lnk->dualstack_partner == NULL) {
       /* link type is right and node is not dualstack */
       OONF_DEBUG(LOG_OLSRV2_W, "Found link with AF %s which is not dualstack",
-          _send_msg_type == AF_INET ? "ipv4" : "ipv6");
+          _send_msg_af == AF_INET ? "ipv4" : "ipv6");
       return true;
     }
     if (nhdp_db_link_is_ipv6_dualstack(lnk)) {
@@ -380,7 +380,7 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
 
     /* iterate over neighbors addresses */
     avl_for_each_element(&neigh->_neigh_addresses, naddr, _neigh_node) {
-      if (netaddr_get_address_family(&naddr->neigh_addr) != _send_msg_type) {
+      if (netaddr_get_address_family(&naddr->neigh_addr) != _send_msg_af) {
         /* wrong address family */
         OONF_DEBUG(LOG_OLSRV2_W, "Wrong address type of neighbor %s",
             netaddr_to_string(&buf, &naddr->neigh_addr));
@@ -469,7 +469,7 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
 
   /* Iterate over locally attached networks */
   avl_for_each_element(&olsrv2_lan_tree, lan, _node) {
-    if (netaddr_get_address_family(&lan->prefix) != _send_msg_type) {
+    if (netaddr_get_address_family(&lan->prefix) != _send_msg_af) {
       /* wrong address family */
       continue;
     }
