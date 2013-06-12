@@ -338,7 +338,7 @@ _cb_link_removed(void *ptr) {
 }
 
 static uint64_t
-_get_linkspeed(struct nhdp_link *lnk) {
+_get_rx_linkspeed(struct nhdp_link *lnk) {
   const struct oonf_linkconfig_data *linkdata;
   struct oonf_interface_data *ifdata;
   struct oonf_layer2_neighbor *l2neigh;
@@ -347,16 +347,16 @@ _get_linkspeed(struct nhdp_link *lnk) {
   struct netaddr_str nbuf;
 #endif
 
-  OONF_DEBUG(LOG_FF_ETT, "Query linkspeed for link %s",
+  OONF_DEBUG(LOG_FF_ETT, "Query incoming linkspeed for link %s",
       netaddr_to_string(&nbuf, &lnk->if_addr));
 
   /* look for link configuration with originator address */
   linkdata = oonf_linkconfig_get(
       nhdp_interface_get_name(lnk->local_if), &lnk->neigh->originator);
   if (linkdata != NULL
-      && linkdata->tx_bitrate != oonf_linkconfig_default.tx_bitrate) {
-    OONF_DEBUG(LOG_FF_ETT, "Found IP configured linkspeed");
-    return linkdata->tx_bitrate;
+      && linkdata->rx_bitrate != oonf_linkconfig_default.rx_bitrate) {
+    OONF_DEBUG(LOG_FF_ETT, "Found IP configured rx linkspeed");
+    return linkdata->rx_bitrate;
   }
 
   if (lnk->dualstack_partner) {
@@ -364,9 +364,9 @@ _get_linkspeed(struct nhdp_link *lnk) {
         nhdp_interface_get_name(lnk->local_if),
         &lnk->dualstack_partner->neigh->originator);
     if (linkdata != NULL
-        && linkdata->tx_bitrate != oonf_linkconfig_default.tx_bitrate) {
-      OONF_DEBUG(LOG_FF_ETT, "Found IP configured linkspeed");
-      return linkdata->tx_bitrate;
+        && linkdata->rx_bitrate != oonf_linkconfig_default.rx_bitrate) {
+      OONF_DEBUG(LOG_FF_ETT, "Found IP configured rx linkspeed");
+      return linkdata->rx_bitrate;
     }
   }
 
@@ -374,9 +374,9 @@ _get_linkspeed(struct nhdp_link *lnk) {
   linkdata = oonf_linkconfig_get(
       nhdp_interface_get_name(lnk->local_if), &lnk->remote_mac);
   if (linkdata != NULL
-      && linkdata->tx_bitrate != oonf_linkconfig_default.tx_bitrate) {
-    OONF_DEBUG(LOG_FF_ETT, "Found MAC configured linkspeed");
-    return linkdata->tx_bitrate;
+      && linkdata->rx_bitrate != oonf_linkconfig_default.rx_bitrate) {
+    OONF_DEBUG(LOG_FF_ETT, "Found MAC configured rx linkspeed");
+    return linkdata->rx_bitrate;
   }
 
   /* get local interface data  */
@@ -388,13 +388,13 @@ _get_linkspeed(struct nhdp_link *lnk) {
   /* query layer2 database about neighbor */
   l2neigh = oonf_layer2_get_neighbor(&ifdata->mac, &lnk->remote_mac);
   if (l2neigh == NULL
-          || !oonf_layer2_neighbor_has_tx_bitrate(l2neigh)) {
+          || !oonf_layer2_neighbor_has_rx_bitrate(l2neigh)) {
     return 0;
   }
 
   /* use linkspeed from measurement */
   OONF_DEBUG(LOG_FF_ETT, "Found layer2 linkspeed");
-  return l2neigh->tx_bitrate;
+  return l2neigh->rx_bitrate;
 }
 
 /**
@@ -407,7 +407,7 @@ _cb_ett_sampling(void *ptr __attribute__((unused))) {
   struct nhdp_link *lnk;
   uint32_t total, received;
   uint64_t metric;
-  uint64_t tx_bitrate;
+  uint64_t rx_bitrate;
   int i;
 
 #ifdef OONF_LOG_DEBUG_INFO
@@ -459,14 +459,14 @@ _cb_ett_sampling(void *ptr __attribute__((unused))) {
     }
 
     /* get link speed */
-    tx_bitrate = _get_linkspeed(lnk);
+    rx_bitrate = _get_rx_linkspeed(lnk);
 
     /* apply linkspeed to metric */
-    if (tx_bitrate > ETTFF_LINKSPEED_MAXIMUM) {
+    if (rx_bitrate > ETTFF_LINKSPEED_MAXIMUM) {
       metric /= (ETTFF_LINKSPEED_MAXIMUM / ETTFF_LINKSPEED_MINIMUM);
     }
-    else if (tx_bitrate > ETTFF_LINKSPEED_MINIMUM) {
-      metric /= (tx_bitrate / ETTFF_LINKSPEED_MINIMUM);
+    else if (rx_bitrate > ETTFF_LINKSPEED_MINIMUM) {
+      metric /= (rx_bitrate / ETTFF_LINKSPEED_MINIMUM);
     }
 
     /* convert into something that can be transmitted over the network */
@@ -479,7 +479,7 @@ _cb_ett_sampling(void *ptr __attribute__((unused))) {
         " %d/%d = %" PRIu64 " (w=%d, speed=%"PRIu64 ")\n",
         netaddr_to_string(&buf, &avl_first_element(&lnk->_addresses, laddr, _link_node)->link_addr),
         nhdp_interface_get_name(lnk->local_if),
-        received, total, metric, ldata->window_size, tx_bitrate);
+        received, total, metric, ldata->window_size, rx_bitrate);
 
     /* update rolling buffer */
     ldata->activePtr++;
