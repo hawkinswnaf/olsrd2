@@ -64,66 +64,6 @@
 
 #include "ff_ett/ff_ett.h"
 
-/* definitions and constants */
-enum {
-  ETTFF_LINKSPEED_MINIMUM = 1024 * 1024,
-  ETTFF_LINKSPEED_MAXIMUM = ETTFF_LINKSPEED_MINIMUM * 256,
-
-  ETTFF_ETXCOST_MINIMUM   = NHDP_METRIC_DEFAULT / 16,
-  ETTFF_ETXCOST_MAXIMUM   = NHDP_METRIC_DEFAULT,
-
-  ETTFF_LINKCOST_START    = NHDP_METRIC_DEFAULT,
-  ETTFF_LINKCOST_MINIMUM  =
-      ETTFF_ETXCOST_MINIMUM *
-      (ETTFF_LINKSPEED_MAXIMUM / ETTFF_LINKSPEED_MINIMUM),
-  ETTFF_LINKCOST_MAXIMUM  = ETTFF_ETXCOST_MAXIMUM,
-};
-
-/* Configuration settings of ETTFF Metric */
-struct _config {
-  /* Interval between two updates of the metric */
-  uint64_t interval;
-
-  /* length of history in 'interval sized' memory cells */
-  int window;
-
-  /* length of history window when a new link starts */
-  int start_window;
-};
-
-/* a single history memory cell */
-struct link_ettff_bucket {
-  /* number of RFC5444 packets received in time interval */
-  int received;
-
-  /* sum of received and lost RFC5444 packets in time interval */
-  int total;
-};
-
-/* Additional data for a nhdp_link for metric calculation */
-struct link_ettff_data {
-  /* current position in history ringbuffer */
-  int activePtr;
-
-  /* number of missed hellos based on timeouts since last received packet */
-  int missed_hellos;
-
-  /* current window size for this link */
-  uint16_t window_size;
-
-  /* last received packet sequence number */
-  uint16_t last_seq_nr;
-
-  /* timer for measuring lost hellos when no further packets are received */
-  struct oonf_timer_entry hello_lost_timer;
-
-  /* last known hello interval */
-  uint64_t hello_interval;
-
-  /* history ringbuffer */
-  struct link_ettff_bucket buckets[0];
-};
-
 /* prototypes */
 static int _init(void);
 static void _cleanup(void);
@@ -147,11 +87,11 @@ static void _cb_cfg_changed(void);
 
 /* plugin declaration */
 static struct cfg_schema_entry _ettff_entries[] = {
-  CFG_MAP_CLOCK_MIN(_config, interval, "interval", "1.0",
+  CFG_MAP_CLOCK_MIN(ff_ett_config, interval, "interval", "1.0",
       "Time interval between recalculations of metric", 100),
-  CFG_MAP_INT_MINMAX(_config, window, "window", "64",
+  CFG_MAP_INT_MINMAX(ff_ett_config, window, "window", "64",
       "Number of intervals to calculate average ETT", 2, 65535),
-  CFG_MAP_INT_MINMAX(_config, start_window, "start_window", "4",
+  CFG_MAP_INT_MINMAX(ff_ett_config, start_window, "start_window", "4",
       "Window sized used during startup, will be increased by 1"
       " for each interval. Smaller values allow quicker initial"
       " rise of metric value, it cannot be larger than the normal"
@@ -167,7 +107,7 @@ static struct cfg_schema_section _ettff_section = {
   .entry_count = ARRAYSIZE(_ettff_entries),
 };
 
-static struct _config _ettff_config = { 0,0,0 };
+static struct ff_ett_config _ettff_config = { 0,0,0 };
 
 struct oonf_subsystem olsrv2_ffett_subsystem = {
   .name = OONF_PLUGIN_GET_NAME(),
@@ -644,7 +584,7 @@ _cb_cfg_changed(void) {
 static int
 _cb_cfg_validate(const char *section_name,
     struct cfg_named_section *named, struct autobuf *out) {
-  struct _config cfg;
+  struct ff_ett_config cfg;
 
   /* clear temporary buffer */
   memset(&cfg, 0, sizeof(cfg));

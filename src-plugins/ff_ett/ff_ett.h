@@ -45,6 +45,68 @@
 #include "common/common_types.h"
 #include "core/oonf_subsystem.h"
 
+/* definitions and constants */
+enum {
+  ETTFF_LINKSPEED_MINIMUM = 1024 * 1024,
+  ETTFF_LINKSPEED_MAXIMUM = ETTFF_LINKSPEED_MINIMUM * 256,
+
+  ETTFF_ETXCOST_MINIMUM   = NHDP_METRIC_DEFAULT / 16,
+  ETTFF_ETXCOST_MAXIMUM   = NHDP_METRIC_DEFAULT,
+
+  ETTFF_LINKCOST_START    = NHDP_METRIC_DEFAULT,
+  ETTFF_LINKCOST_MINIMUM  =
+      ETTFF_ETXCOST_MINIMUM *
+      (ETTFF_LINKSPEED_MAXIMUM / ETTFF_LINKSPEED_MINIMUM),
+  ETTFF_LINKCOST_MAXIMUM  = ETTFF_ETXCOST_MAXIMUM,
+};
+
+/* Configuration settings of ETTFF Metric */
+struct ff_ett_config {
+  /* Interval between two updates of the metric */
+  uint64_t interval;
+
+  /* length of history in 'interval sized' memory cells */
+  int window;
+
+  /* length of history window when a new link starts */
+  int start_window;
+};
+
+/* a single history memory cell */
+struct link_ettff_bucket {
+  /* number of RFC5444 packets received in time interval */
+  int received;
+
+  /* sum of received and lost RFC5444 packets in time interval */
+  int total;
+};
+
+/* Additional data for a nhdp_link for metric calculation */
+struct link_ettff_data {
+  /* current position in history ringbuffer */
+  int activePtr;
+
+  /* number of missed hellos based on timeouts since last received packet */
+  int missed_hellos;
+
+  /* current window size for this link */
+  uint16_t window_size;
+
+  /* last received packet sequence number */
+  uint16_t last_seq_nr;
+
+  /* timer for measuring lost hellos when no further packets are received */
+  struct oonf_timer_entry hello_lost_timer;
+
+  /* last known hello interval */
+  uint64_t hello_interval;
+
+  uint32_t average, variance;
+
+  /* history ringbuffer */
+  struct link_ettff_bucket buckets[0];
+};
+
 #define LOG_FF_ETT olsrv2_ffett_subsystem.logging
 EXPORT extern struct oonf_subsystem olsrv2_ffett_subsystem;
 
