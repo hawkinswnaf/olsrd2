@@ -636,7 +636,7 @@ _cb_addresstlvs_pass1_end(struct rfc5444_reader_tlvblock_context *context, bool 
       nhdp_db_link_connect_dualstack(_current.link, lnk2);
     }
   }
-  else if (netaddr_get_address_family(&context->orig_addr) == AF_INET
+  else if (netaddr_get_address_family(&context->orig_addr) == AF_INET6
       && netaddr_get_address_family(&_current.originator_v4) == AF_UNSPEC) {
     nhdp_db_neigbor_disconnect_dualstack(_current.neighbor);
     nhdp_db_link_disconnect_dualstack(_current.link);

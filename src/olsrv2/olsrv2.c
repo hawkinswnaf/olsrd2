@@ -349,7 +349,7 @@ olsrv2_mpr_shall_process(
   dup_result = oonf_duplicate_entry_add(&_protocol->processed_set,
       context->msg_type, &context->orig_addr,
       context->seqno, vtime + _olsrv2_config.f_hold_time);
-  process = dup_result == OONF_DUPSET_NEW || dup_result == OONF_DUPSET_NEWEST;
+  process = oonf_duplicate_is_new(dup_result);
 
   OONF_DEBUG(LOG_OLSRV2, "Do %sprocess message type %u from %s"
       " with seqno %u (dupset result: %u)",
@@ -391,7 +391,7 @@ olsrv2_mpr_shall_forwarding(
   dup_result = oonf_duplicate_entry_add(&_protocol->forwarded_set,
       context->msg_type, &context->orig_addr,
       context->seqno, vtime + _olsrv2_config.f_hold_time);
-  if (oonf_duplicate_is_new(dup_result)) {
+  if (!oonf_duplicate_is_new(dup_result)) {
     OONF_DEBUG(LOG_OLSRV2, "Do not forward message type %u from %s"
         " with seqno %u (dupset result: %u)",
         context->msg_type,
