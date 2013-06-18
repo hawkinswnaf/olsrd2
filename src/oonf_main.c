@@ -544,7 +544,7 @@ parse_commandline(int argc, char **argv, bool reload_only) {
         return_code = 0;
         break;
       case 'p':
-        if (oonf_plugins_load(optarg) == NULL) {
+        if (oonf_cfg_load_plugin(optarg) == NULL) {
           return_code = 1;
         }
         else {
