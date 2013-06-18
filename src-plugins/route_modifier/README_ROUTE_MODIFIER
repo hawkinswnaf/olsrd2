@@ -1,0 +1,20 @@
+   PLUGIN USAGE
+==================
+Route Modifier plugin by Henning Rogge
+
+This plugin allows the user to change the routing table, routing protocol
+and metric value of certain routes created by the OLSR routing daemon.
+
+
+   PLUGIN CONFIGURATION
+==========================
+
+[route_modifier=1]
+   domain   0
+   filter   +10.0.1.0/24
+   table    22
+
+[route_modifier=2]
+   filter   10.1.0.1
+   metric   100
+   distance 10

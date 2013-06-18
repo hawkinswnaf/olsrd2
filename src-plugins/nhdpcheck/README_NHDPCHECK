@@ -2,10 +2,11 @@
 ==================
 NHDPCHECK plugin by Henning Rogge
 
-This plugin check
+This plugin checks the incoming NHDP messages if they are consistent to
+the RFC 6130 standard.
 
 
    PLUGIN CONFIGURATION
 ==========================
 
-
+none

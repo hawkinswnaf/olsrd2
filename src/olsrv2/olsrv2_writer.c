@@ -381,9 +381,7 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
     /* iterate over neighbors addresses */
     avl_for_each_element(&neigh->_neigh_addresses, naddr, _neigh_node) {
       if (netaddr_get_address_family(&naddr->neigh_addr) != _send_msg_af) {
-        /* wrong address family */
-        OONF_DEBUG(LOG_OLSRV2_W, "Wrong address type of neighbor %s",
-            netaddr_to_string(&buf, &naddr->neigh_addr));
+        /* wrong address family, skip this one */
         continue;
       }
 
@@ -406,8 +404,7 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
       OONF_DEBUG(LOG_OLSRV2_W, "Add address %s to TC",
           netaddr_to_string(&buf, &naddr->neigh_addr));
       addr = rfc5444_writer_add_address(writer, _olsrv2_msgcontent_provider.creator,
-          netaddr_get_binptr(&naddr->neigh_addr),
-          netaddr_get_prefix_length(&naddr->neigh_addr), false);
+          &naddr->neigh_addr, false);
       if (addr == NULL) {
         OONF_WARN(LOG_OLSRV2_W, "Out of memory error for olsrv2 address");
         return;
@@ -477,8 +474,7 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
     OONF_DEBUG(LOG_OLSRV2_W, "Add address %s to TC",
         netaddr_to_string(&buf, &lan->prefix));
     addr = rfc5444_writer_add_address(writer, _olsrv2_msgcontent_provider.creator,
-        netaddr_get_binptr(&lan->prefix),
-        netaddr_get_prefix_length(&lan->prefix), false);
+        &lan->prefix, false);
     if (addr == NULL) {
       OONF_WARN(LOG_OLSRV2_W, "Out of memory error for olsrv2 address");
       return;

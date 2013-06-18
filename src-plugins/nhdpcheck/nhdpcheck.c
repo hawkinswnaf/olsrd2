@@ -60,7 +60,7 @@ static void _cleanup(void);
 /* plugin declaration */
 struct oonf_subsystem olsrv2_nhdpcheck_subsystem = {
   .name = OONF_PLUGIN_GET_NAME(),
-  .descr = "OONFD2 nhdpcheck plugin",
+  .descr = "OLSRv2 nhdpcheck plugin",
   .author = "Henning Rogge",
   .init = _init,
   .cleanup = _cleanup,

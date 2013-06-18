@@ -319,8 +319,7 @@ _add_localif_address(struct rfc5444_writer *writer, struct rfc5444_writer_conten
       netaddr_to_string(&buf, &addr->if_addr), this_if ? "this_if" : "other_if");
 
   /* generate RFC5444 address */
-  address = rfc5444_writer_add_address(writer, prv->creator,
-      netaddr_get_binptr(&addr->if_addr), netaddr_get_prefix_length(&addr->if_addr), true);
+  address = rfc5444_writer_add_address(writer, prv->creator, &addr->if_addr, true);
   if (address == NULL) {
     OONF_WARN(LOG_NHDP_W, "Could not add address %s to NHDP hello",
         netaddr_to_string(&buf, &addr->if_addr));
@@ -372,8 +371,7 @@ _add_link_address(struct rfc5444_writer *writer, struct rfc5444_writer_content_p
   }
 
   /* generate RFC5444 address */
-  address = rfc5444_writer_add_address(writer, prv->creator,
-      netaddr_get_binptr(&naddr->neigh_addr), netaddr_get_prefix_length(&naddr->neigh_addr), true);
+  address = rfc5444_writer_add_address(writer, prv->creator, &naddr->neigh_addr, true);
   if (address == NULL) {
     OONF_WARN(LOG_NHDP_W, "Could not add address %s to NHDP hello",
         netaddr_to_string(&buf, &naddr->neigh_addr));

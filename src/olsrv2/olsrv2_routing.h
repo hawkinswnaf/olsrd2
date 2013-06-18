@@ -121,7 +121,20 @@ struct olsrv2_routing_domain {
   int distance;
 };
 
+/* A filter that can modify or drop the result of the Dijkstra algorithm */
+struct olsrv2_routing_filter {
+  /*
+   * callback for routing filter, return false to drop route.
+   * filter can modify rt_table, rt_protocol and rt_metric.
+   */
+  bool (*filter)(struct nhdp_domain *, struct os_route *);
+
+  /* node to hold all routing filters together */
+  struct list_entity _node;
+};
+
 EXPORT extern struct avl_tree olsrv2_routing_tree[NHDP_MAXIMUM_DOMAINS];
+EXPORT extern struct list_entity olsrv2_routing_filter_list;
 
 void olsrv2_routing_init(void);
 void olsrv2_routing_initiate_shutdown(void);
@@ -137,5 +150,23 @@ EXPORT void olsrv2_routing_trigger_update(void);
 
 EXPORT const struct olsrv2_routing_domain *
     olsrv2_routing_get_parameters(struct nhdp_domain *);
+
+/**
+ * Add a routing filter to the dijkstra processing list
+ * @param filter pointer to routing filter
+ */
+static INLINE void
+olsrv2_routing_filter_add(struct olsrv2_routing_filter *filter) {
+  list_add_tail(&olsrv2_routing_filter_list, &filter->_node);
+}
+
+/**
+ * Remove a routing filter from the dijkstra processing list
+ * @param filter pointer to routing filter
+ */
+static INLINE void
+olsrv2_routing_filter_remove(struct olsrv2_routing_filter *filter) {
+  list_remove(&filter->_node);
+}
 
 #endif /* OONFV2_ROUTING_SET_H_ */

@@ -364,7 +364,12 @@ _cb_addresstlvs(struct rfc5444_reader_tlvblock_context *context __attribute__((u
           cost_out[domain->index],
           tlv->single_value[0]);
       end->ansn = _current.node->ansn;
-      end->cost[domain->index] = cost_out[domain->index];
+      if (cost_out[domain->index] == RFC5444_METRIC_INFINITE) {
+        end->cost[domain->index] = 0;
+      }
+      else {
+        end->cost[domain->index] = cost_out[domain->index];
+      }
       end->distance[domain->index] = tlv->single_value[0];
     }
   }

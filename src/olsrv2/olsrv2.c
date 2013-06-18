@@ -208,6 +208,7 @@ static uint16_t _ansn;
 /* Additional logging sources */
 enum oonf_log_source LOG_OLSRV2_R;
 enum oonf_log_source LOG_OLSRV2_W;
+enum oonf_log_source LOG_OLSRV2_ROUTING;
 
 /**
  * Initialize additional logging sources for NHDP
@@ -216,6 +217,7 @@ static void
 _early_cfg_init(void) {
   LOG_OLSRV2_R = oonf_log_register_source(OLSRV2_NAME "_r");
   LOG_OLSRV2_W = oonf_log_register_source(OLSRV2_NAME "_w");
+  LOG_OLSRV2_ROUTING = oonf_log_register_source(OLSRV2_NAME "_routing");
 }
 
 /**
