@@ -46,6 +46,7 @@
 #include "common/netaddr.h"
 
 #include "core/oonf_subsystem.h"
+#include "subsystems/oonf_rfc5444.h"
 
 #define CFG_NHDP_SECTION        "nhdp"
 
@@ -83,5 +84,10 @@ void nhdp_cleanup(void);
 EXPORT void nhdp_set_originator(const struct netaddr *);
 EXPORT void nhdp_reset_originator(int af_type);
 EXPORT const struct netaddr *nhdp_get_originator(int af_type);
+
+EXPORT bool nhdp_flooding_selector(struct rfc5444_writer *writer,
+    struct rfc5444_writer_target *rfc5444_target, void *ptr);
+EXPORT bool nhdp_message_forwarding_selector(
+    struct rfc5444_writer_target *rfc5444_target);
 
 #endif /* NHDP_H_ */

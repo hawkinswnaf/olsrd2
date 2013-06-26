@@ -86,6 +86,9 @@ struct nhdp_interface {
   bool use_ipv4_for_flooding;
   bool use_ipv6_for_flooding;
 
+  /* address family used for dualstack purpose */
+  int dualstack_af_type;
+
   /* timer for hello generation */
   struct oonf_timer_entry _hello_timer;
 

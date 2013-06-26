@@ -139,9 +139,11 @@ nhdp_interfaces_cleanup(void) {
 void
 nhdp_interface_update_status(struct nhdp_interface *interf) {
   struct nhdp_link *lnk;
+  int ipv4_only, ipv6_only, dualstack;
 
-  interf->use_ipv4_for_flooding = false;
-  interf->use_ipv6_for_flooding = false;
+  ipv4_only = 0;
+  ipv6_only = 0;
+  dualstack = 0;
 
   list_for_each_element(&interf->_links, lnk, _if_node) {
     if (lnk->status != NHDP_LINK_SYMMETRIC) {
@@ -149,18 +151,47 @@ nhdp_interface_update_status(struct nhdp_interface *interf) {
       continue;
     }
 
-    /* originator can be AF_UNSPEC, so we cannot use "else" */
-    if (netaddr_get_address_family(&lnk->neigh->originator) == AF_INET
-        && lnk->dualstack_partner == NULL) {
-      /* ipv4 neighbor without dualstack */
-      interf->use_ipv4_for_flooding = true;
+    if (lnk->dualstack_partner != NULL) {
+      if (netaddr_get_address_family(&lnk->neigh->originator) == AF_INET) {
+        /* count dualstack only once, not for IPv4 and IPv6 */
+        dualstack++;
+      }
+      continue;
     }
-    if (netaddr_get_address_family(&lnk->neigh->originator) == AF_INET6
-        || lnk->dualstack_partner != NULL) {
-      /* ipv6 neighbor or dualstack neighbor */
-      interf->use_ipv6_for_flooding = true;
+
+    /* we have a non-dualstack node */
+    if (netaddr_get_address_family(&lnk->neigh->originator) == AF_INET) {
+      ipv4_only++;
+    }
+    else if (netaddr_get_address_family(&lnk->neigh->originator) == AF_INET6) {
+      ipv6_only++;
     }
   }
+
+  OONF_DEBUG(LOG_NHDP, "Interface %s: ipv4_only=%d ipv6_only=%d dualstack=%d",
+      nhdp_interface_get_name(interf), ipv4_only, ipv6_only, dualstack);
+
+  interf->use_ipv4_for_flooding = ipv4_only > 0;
+  interf->use_ipv6_for_flooding =
+      ipv6_only > 0 || (ipv4_only == 0 && dualstack > 0);
+
+  interf->dualstack_af_type = AF_UNSPEC;
+  if (dualstack > 0) {
+    /* we have dualstack capable nodes */
+    if (ipv4_only == 0) {
+      /* use IPv6 for dualstack, we have no ipv4-only neighbors */
+      interf->dualstack_af_type = AF_INET6;
+    }
+    else if (ipv6_only == 0) {
+      /* use IPv4 for dualstack, we have no ipv6-only neighbors */
+      interf->dualstack_af_type = AF_INET;
+    }
+  }
+
+  OONF_DEBUG(LOG_NHDP, "Interface %s: floodv4=%d floodv6=%d dualstack=%d",
+      nhdp_interface_get_name(interf),
+      interf->use_ipv4_for_flooding, interf->use_ipv6_for_flooding,
+      interf->dualstack_af_type);
 }
 
 /**

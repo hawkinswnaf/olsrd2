@@ -67,8 +67,10 @@ enum {
 
 /* Prototypes */
 static void _send_tc(int af_type);
+#if 0
 static bool _cb_tc_interface_selector(struct rfc5444_writer *,
     struct rfc5444_writer_target *rfc5444_target, void *ptr);
+#endif
 
 static void _cb_initialize_gatewaytlv(void *);
 
@@ -128,7 +130,7 @@ olsrv2_writer_init(struct oonf_rfc5444_protocol *protocol) {
   }
 
   _olsrv2_message->addMessageHeader = _cb_addMessageHeader;
-  _olsrv2_message->forward_target_selector = olsrv2_mpr_forwarding_selector;
+  _olsrv2_message->forward_target_selector = nhdp_message_forwarding_selector;
 
   if (rfc5444_writer_register_msgcontentprovider(
       &_protocol->writer, &_olsrv2_msgcontent_provider,
@@ -194,7 +196,7 @@ _send_tc(int af_type) {
   if (netaddr_get_address_family(originator) == af_type) {
     _send_msg_af = af_type;
     OONF_INFO(LOG_OLSRV2_W, "Emit IPv%d TC message.", af_type == AF_INET ? 4 : 6);
-    oonf_rfc5444_send_all(_protocol, RFC5444_MSGTYPE_TC, _cb_tc_interface_selector);
+    oonf_rfc5444_send_all(_protocol, RFC5444_MSGTYPE_TC, nhdp_flooding_selector);
     _send_msg_af = AF_UNSPEC;
   }
 }
@@ -236,84 +238,6 @@ _cb_addMessageHeader(struct rfc5444_writer *writer,
       oonf_rfc5444_get_next_message_seqno(_protocol));
 
   OONF_DEBUG(LOG_OLSRV2_W, "Generate TC");
-}
-
-/**
- * Selector for outgoing target
- * @param writer rfc5444 writer
- * @param target rfc5444 target
- * @param ptr custom pointer, contains rfc5444 target
- * @return true if target corresponds to selection
- */
-static bool
-_cb_tc_interface_selector(struct rfc5444_writer *writer __attribute__((unused)),
-    struct rfc5444_writer_target *rfc5444_target, void *ptr __attribute__((unused))) {
-  struct oonf_rfc5444_target *target;
-  struct oonf_interface *interf;
-  struct nhdp_interface *ninterf;
-  struct nhdp_link *lnk;
-  int target_af_type;
-
-  target = container_of(rfc5444_target, struct oonf_rfc5444_target, rfc5444_target);
-
-  interf = oonf_rfc5444_get_core_interface(target->interface);
-  if (interf->data.loopback) {
-    /* no TCs on loopback */
-    return false;
-  }
-
-  if (target == target->interface->multicast4) {
-    target_af_type = AF_INET;
-  }
-  else if (target == target->interface->multicast6) {
-    target_af_type = AF_INET6;
-  }
-  else {
-    /* do not use unicast targets with this selector */
-    return false;
-  }
-  ninterf = nhdp_interface_get(target->interface->name);
-  if (ninterf == NULL) {
-    /* unknown interface */
-    return false;
-  }
-
-  if (list_is_empty(&ninterf->_links)) {
-    /* no neighbor */
-    return false;
-  }
-
-  /*
-   * search for a link beyond the interface that is
-   * symmetric and needs a message of the specified address type
-   * on this target type
-   */
-  list_for_each_element(&ninterf->_links, lnk, _if_node) {
-    if (lnk->status != NHDP_LINK_SYMMETRIC) {
-      /* link is not symmetric */
-      continue;
-    }
-    if (netaddr_get_address_family(&lnk->neigh->originator) != target_af_type) {
-      /* link cannot receive this targets address type */
-      continue;
-    }
-    if (netaddr_get_address_family(&lnk->neigh->originator) == _send_msg_af
-        && lnk->dualstack_partner == NULL) {
-      /* link type is right and node is not dualstack */
-      OONF_DEBUG(LOG_OLSRV2_W, "Found link with AF %s which is not dualstack",
-          _send_msg_af == AF_INET ? "ipv4" : "ipv6");
-      return true;
-    }
-    if (nhdp_db_link_is_ipv6_dualstack(lnk)) {
-      /* prefer IPv6 for dualstack neighbors */
-      OONF_DEBUG(LOG_OLSRV2_W, "Found link with AF ipv6 which is dualstack");
-
-      return true;
-    }
-  }
-
-  /* nothing to do with this interface */
-  return false;
 }
 
 /**

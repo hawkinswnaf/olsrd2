@@ -446,53 +446,6 @@ olsrv2_mpr_shall_forwarding(
 }
 
 /**
- * default implementation for rfc5444 forwarding target selection
- * according to MPR settings
- * @param rfc5444_target
- * @return
- */
-bool
-olsrv2_mpr_forwarding_selector(struct rfc5444_writer_target *rfc5444_target) {
-  struct oonf_rfc5444_target *target;
-  struct nhdp_interface *interf;
-  bool is_ipv4, flood;
-#ifdef OONF_LOG_DEBUG_INFO
-  struct netaddr_str buf;
-#endif
-  target = container_of(rfc5444_target, struct oonf_rfc5444_target, rfc5444_target);
-
-  /* test if this is the ipv4 multicast target */
-  is_ipv4 = target == target->interface->multicast4;
-
-  /* only forward to multicast targets */
-  if (!is_ipv4 && target != target->interface->multicast6) {
-    return false;
-  }
-
-  /* get NHDP interface for target */
-  interf = nhdp_interface_get(target->interface->name);
-  if (interf == NULL) {
-    OONF_DEBUG(LOG_OLSRV2, "Do not forward message"
-        " to interface %s: its unknown to NHDP",
-        target->interface->name);
-    return NULL;
-  }
-
-  /* lookup flooding cache in NHDP interface */
-  if (is_ipv4) {
-    flood = interf->use_ipv4_for_flooding;
-  }
-  else {
-    flood =  interf->use_ipv6_for_flooding;
-  }
-
-  OONF_DEBUG(LOG_OLSRV2, "Flooding to target %s: %s",
-      netaddr_to_string(&buf, &target->dst), flood ? "yes" : "no");
-
-  return flood;
-}
-
-/**
  * @return current answer set number for local topology database
  */
 uint16_t

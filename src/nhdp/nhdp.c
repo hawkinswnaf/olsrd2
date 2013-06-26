@@ -267,6 +267,69 @@ nhdp_get_originator(int af_type) {
 }
 
 /**
+ * default implementation for rfc5444 flooding target selection to
+ * handle dualstack correctly.
+ * @param rfc5444_target
+ * @return
+ */
+bool
+nhdp_flooding_selector(struct rfc5444_writer *writer __attribute__((unused)),
+    struct rfc5444_writer_target *rfc5444_target, void *ptr __attribute__((unused))) {
+  return nhdp_message_forwarding_selector(rfc5444_target);
+}
+
+/**
+ * default implementation for rfc5444 forwarding selector to
+ * hangle dualstack correctly
+ * @param writer rfc5444 writer
+ * @param target rfc5444 target
+ * @param ptr custom pointer, contains rfc5444 target
+ * @return true if target corresponds to selection
+ */
+bool
+nhdp_message_forwarding_selector(struct rfc5444_writer_target *rfc5444_target) {
+  struct oonf_rfc5444_target *target;
+  struct nhdp_interface *interf;
+  bool is_ipv4, flood;
+#ifdef OONF_LOG_DEBUG_INFO
+  struct netaddr_str buf;
+#endif
+  target = container_of(rfc5444_target, struct oonf_rfc5444_target, rfc5444_target);
+
+  /* test if this is the ipv4 multicast target */
+  is_ipv4 = target == target->interface->multicast4;
+
+  /* only forward to multicast targets */
+  if (!is_ipv4 && target != target->interface->multicast6) {
+    return false;
+  }
+
+  /* get NHDP interface for target */
+  interf = nhdp_interface_get(target->interface->name);
+  if (interf == NULL) {
+    OONF_DEBUG(LOG_NHDP, "Do not flood message type"
+        " to interface %s: its unknown to NHDP",
+        target->interface->name);
+    return NULL;
+  }
+
+  /* lookup flooding cache in NHDP interface */
+  if (is_ipv4) {
+    flood = interf->use_ipv4_for_flooding
+        || interf->dualstack_af_type == AF_INET;
+  }
+  else {
+    flood =  interf->use_ipv6_for_flooding
+        || interf->dualstack_af_type == AF_INET6;
+  }
+
+  OONF_DEBUG(LOG_NHDP, "Flooding to target %s: %s",
+      netaddr_to_string(&buf, &target->dst), flood ? "yes" : "no");
+
+  return flood;
+}
+
+/**
  * Callback triggered when the nhdp telnet command is called
  * @param con
  * @return
