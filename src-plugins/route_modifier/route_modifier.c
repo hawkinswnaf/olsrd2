@@ -61,16 +61,16 @@ struct _routemodifier {
   char name[16];
 
   /* domain of the routing filter */
-  int domain;
+  int32_t domain;
 
   /* address filter */
   struct netaddr_acl filter;
-  int prefix_length;
+  int32_t prefix_length;
 
   /* modifiers of routes that match the filter, 0 if not modified */
-  int table;
-  int protocol;
-  int distance;
+  int32_t table;
+  int32_t protocol;
+  int32_t distance;
 
   /* tree of all configured routing filters */
   struct avl_node _node;
@@ -88,19 +88,19 @@ static void _cb_cfg_changed(void);
 
 /* plugin declaration */
 static struct cfg_schema_entry _modifier_entries[] = {
-  CFG_MAP_INT_MINMAX(_routemodifier, domain, "domain", "0",
+  CFG_MAP_INT32_MINMAX(_routemodifier, domain, "domain", "0",
       "Routing domain id for filter", 0, 255),
   CFG_MAP_ACL(_routemodifier, filter, "matches",
       ACL_FIRST_REJECT "\0" ACL_DEFAULT_REJECT,
       "Ip addresses the filter should be applied to"),
-  CFG_MAP_INT_MINMAX(_routemodifier, prefix_length, "prefix_length", "-1",
+  CFG_MAP_INT32_MINMAX(_routemodifier, prefix_length, "prefix_length", "-1",
       "Prefix length the filter should be applied to, -1 for any prefix length",
       -1, 128),
-  CFG_MAP_INT_MINMAX(_routemodifier, table, "table", "0",
+  CFG_MAP_INT32_MINMAX(_routemodifier, table, "table", "0",
       "Set routing table of matching routes to this value", 0, 255),
-  CFG_MAP_INT_MINMAX(_routemodifier, protocol, "protocol", "0",
+  CFG_MAP_INT32_MINMAX(_routemodifier, protocol, "protocol", "0",
       "Set routing protocol of matching routes to this value", 0, 255),
-  CFG_MAP_INT_MINMAX(_routemodifier, distance, "metric", "0",
+  CFG_MAP_INT32_MINMAX(_routemodifier, distance, "metric", "0",
       "Set routing metric of matching routes to this value", 0, INT32_MAX),
 };
 

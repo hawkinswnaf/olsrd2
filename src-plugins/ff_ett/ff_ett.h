@@ -66,10 +66,10 @@ struct ff_ett_config {
   uint64_t interval;
 
   /* length of history in 'interval sized' memory cells */
-  int window;
+  int32_t window;
 
   /* length of history window when a new link starts */
-  int start_window;
+  int32_t start_window;
 };
 
 /* a single history memory cell */

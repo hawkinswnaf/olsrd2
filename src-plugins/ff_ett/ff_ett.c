@@ -89,9 +89,9 @@ static void _cb_cfg_changed(void);
 static struct cfg_schema_entry _ettff_entries[] = {
   CFG_MAP_CLOCK_MIN(ff_ett_config, interval, "interval", "1.0",
       "Time interval between recalculations of metric", 100),
-  CFG_MAP_INT_MINMAX(ff_ett_config, window, "window", "64",
+  CFG_MAP_INT32_MINMAX(ff_ett_config, window, "window", "64",
       "Number of intervals to calculate average ETT", 2, 65535),
-  CFG_MAP_INT_MINMAX(ff_ett_config, start_window, "start_window", "4",
+  CFG_MAP_INT32_MINMAX(ff_ett_config, start_window, "start_window", "4",
       "Window sized used during startup, will be increased by 1"
       " for each interval. Smaller values allow quicker initial"
       " rise of metric value, it cannot be larger than the normal"

@@ -120,11 +120,11 @@ static struct oonf_telnet_command _cmds[] = {
 static struct cfg_schema_entry _rt_domain_entries[] = {
   CFG_MAP_BOOL(olsrv2_routing_domain, use_srcip_in_routes, "srcip_routes", "no",
       "Set the source IP of IPv4-routes to a fixed value."),
-  CFG_MAP_INT_MINMAX(olsrv2_routing_domain, protocol, "protocol", "100",
+  CFG_MAP_INT32_MINMAX(olsrv2_routing_domain, protocol, "protocol", "100",
       "Protocol number to be used in routing table", 1, 254),
-  CFG_MAP_INT_MINMAX(olsrv2_routing_domain, table, "table", "254",
+  CFG_MAP_INT32_MINMAX(olsrv2_routing_domain, table, "table", "254",
       "Routing table number for routes", 1, 254),
-  CFG_MAP_INT_MINMAX(olsrv2_routing_domain, distance, "distance", "2",
+  CFG_MAP_INT32_MINMAX(olsrv2_routing_domain, distance, "distance", "2",
       "Metric Distance to be used in routing table", 1, 255),
 };
 

@@ -64,7 +64,7 @@ struct _config {
   uint64_t interval;
 
   /* size of probe */
-  uint16_t probe_size;
+  int32_t probe_size;
 
   /* only probe neighbors with layer2 data ? */
   bool only_layer2;
@@ -97,7 +97,7 @@ static void _cb_cfg_changed(void);
 static struct cfg_schema_entry _probing_entries[] = {
   CFG_MAP_CLOCK_MIN(_config, interval, "interval", "1.0",
       "Time interval between link probing", 100),
-  CFG_MAP_INT_MINMAX(_config, probe_size, "size", "512",
+  CFG_MAP_INT32_MINMAX(_config, probe_size, "size", "512",
       "Number of bytes used for neighbor probe",
       1, 1500),
   CFG_MAP_BOOL(_config, only_layer2, "only_layer2", "true",
