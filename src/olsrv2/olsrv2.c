@@ -121,11 +121,11 @@ static struct cfg_schema_entry _rt_domain_entries[] = {
   CFG_MAP_BOOL(olsrv2_routing_domain, use_srcip_in_routes, "srcip_routes", "no",
       "Set the source IP of IPv4-routes to a fixed value."),
   CFG_MAP_INT32_MINMAX(olsrv2_routing_domain, protocol, "protocol", "100",
-      "Protocol number to be used in routing table", 1, 254),
+      "Protocol number to be used in routing table", 0, false, 1, 254),
   CFG_MAP_INT32_MINMAX(olsrv2_routing_domain, table, "table", "254",
-      "Routing table number for routes", 1, 254),
+      "Routing table number for routes", 0, false, 1, 254),
   CFG_MAP_INT32_MINMAX(olsrv2_routing_domain, distance, "distance", "2",
-      "Metric Distance to be used in routing table", 1, 255),
+      "Metric Distance to be used in routing table", 0, false, 1, 255),
 };
 
 static struct cfg_schema_section _rt_domain_section = {
@@ -653,7 +653,7 @@ _cb_topology(struct oonf_telnet_data *con) {
   struct olsrv2_tc_attachment *end;
   struct nhdp_domain *domain;
   struct netaddr_str nbuf;
-  struct fraction_str tbuf;
+  struct human_readable_str tbuf;
 
   avl_for_each_element(&olsrv2_tc_tree, node, _originator_node) {
     abuf_appendf(con->out, "Node originator %s: vtime=%s ansn=%u\n",

@@ -99,12 +99,12 @@ static int _cb_cfg_validate(const char *section_name,
 
 /* configuration options */
 static struct cfg_schema_entry _hysteresis_entries[] = {
-  CFG_MAP_FRACTIONAL_MINMAX(_config, accept, "accept", "0.7",
-      "link quality to consider a link up", 3, 0, 1000),
-  CFG_MAP_FRACTIONAL_MINMAX(_config, reject, "reject", "0.3",
-      "link quality to consider a link down", 3, 0, 1000),
-  CFG_MAP_FRACTIONAL_MINMAX(_config, scaling, "scaling", "0.25",
-      "exponential aging to control speed of link hysteresis", 3, 1, 1000),
+  CFG_MAP_INT32_MINMAX(_config, accept, "accept", "0.7",
+      "link quality to consider a link up", 3, false, 0, 1000),
+  CFG_MAP_INT32_MINMAX(_config, reject, "reject", "0.3",
+      "link quality to consider a link down", 3, false, 0, 1000),
+  CFG_MAP_INT32_MINMAX(_config, scaling, "scaling", "0.25",
+      "exponential aging to control speed of link hysteresis", 3, false, 1, 1000),
 };
 
 static struct cfg_schema_section _hysteresis_section = {
@@ -314,12 +314,13 @@ _cb_is_lost(struct nhdp_link *lnk) {
  */
 static const char *
 _cb_to_string(struct nhdp_hysteresis_str *buf, struct nhdp_link *lnk) {
-  struct fraction_str fbuf;
+  struct human_readable_str fbuf;
   struct link_hysteresis_data *data;
 
   data = oonf_class_get_extension(&_link_extenstion, lnk);
 
-  snprintf(buf->buf, sizeof(*buf), "quality=%s", cfg_fraction_to_string(&fbuf, data->quality, 3));
+  snprintf(buf->buf, sizeof(*buf), "quality=%s",
+      str_get_human_readable_s64(&fbuf, data->quality, "", 3, false, true));
 
   return buf->buf;
 }
@@ -361,7 +362,7 @@ static int
 _cb_cfg_validate(const char *section_name,
     struct cfg_named_section *named, struct autobuf *out) {
   struct _config cfg;
-  struct fraction_str buf1, buf2;
+  struct human_readable_str buf1, buf2;
 
   if (cfg_schema_tobin(&cfg, named, _hysteresis_entries, ARRAYSIZE(_hysteresis_entries))) {
     cfg_append_printable_line(out, "Could not parse hysteresis configuration in section %s",
@@ -371,8 +372,8 @@ _cb_cfg_validate(const char *section_name,
 
   if (cfg.accept <= cfg.reject) {
     cfg_append_printable_line(out, "hysteresis accept (%s) is not smaller than reject (%s) value",
-        cfg_fraction_to_string(&buf1, cfg.accept, 3),
-        cfg_fraction_to_string(&buf2, cfg.reject, 3));
+        str_get_human_readable_s64(&buf1, cfg.accept, "", 3, false, true),
+        str_get_human_readable_s64(&buf2, cfg.reject, "", 3, false, true));
     return -1;
   }
   return 0;

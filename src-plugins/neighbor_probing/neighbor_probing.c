@@ -99,7 +99,7 @@ static struct cfg_schema_entry _probing_entries[] = {
       "Time interval between link probing", 100),
   CFG_MAP_INT32_MINMAX(_config, probe_size, "size", "512",
       "Number of bytes used for neighbor probe",
-      1, 1500),
+      0, false, 1, 1500),
   CFG_MAP_BOOL(_config, only_layer2, "only_layer2", "true",
       "Only probe link ends which have a layer2 entry in the database?"),
 };
