@@ -65,9 +65,6 @@ struct _config {
 
   /* size of probe */
   int32_t probe_size;
-
-  /* only probe neighbors with layer2 data ? */
-  bool only_layer2;
 };
 
 struct _probing_link_data {
@@ -100,8 +97,6 @@ static struct cfg_schema_entry _probing_entries[] = {
   CFG_MAP_INT32_MINMAX(_config, probe_size, "size", "512",
       "Number of bytes used for neighbor probe",
       0, false, 1, 1500),
-  CFG_MAP_BOOL(_config, only_layer2, "only_layer2", "true",
-      "Only probe link ends which have a layer2 entry in the database?"),
 };
 
 static struct cfg_schema_section _probing_section = {
@@ -225,7 +220,8 @@ _cb_probe_link(void *ptr __attribute__((unused))) {
   struct nhdp_interface *ninterf;
 
   struct oonf_interface *interf;
-  struct oonf_layer2_neighbor *l2neigh;
+  struct oonf_layer2_net *l2net;
+  struct oonf_layer2_neigh *l2neigh;
 
   uint64_t points, best_points;
   uint64_t last_tx_packets;
@@ -244,34 +240,41 @@ _cb_probe_link(void *ptr __attribute__((unused))) {
   avl_for_each_element(&nhdp_interface_tree, ninterf, _node) {
     interf = nhdp_interface_get_coreif(ninterf);
 
+    l2net = oonf_layer2_net_get(&interf->data.mac);
+    if (!l2net || l2net->if_type != OONF_LAYER2_TYPE_WIRELESS) {
+      OONF_DEBUG(LOG_PROBING, "Drop interface %s (not wireless)",
+          l2net->if_name);
+      continue;
+    }
+
     OONF_DEBUG(LOG_PROBING, "Start looking for probe candidate in interface '%s'",
         interf->data.name);
 
     list_for_each_element(&ninterf->_links, lnk, _if_node) {
-      if (_probe_config.only_layer2) {
-        /* get layer2 data */
-        l2neigh = oonf_layer2_get_neighbor(&interf->data.mac, &lnk->remote_mac);
-        if (l2neigh == NULL || !oonf_layer2_neighbor_has_tx_packets(l2neigh)) {
-          OONF_DEBUG(LOG_PROBING, "Drop link (missing l2 data)");
-          continue;
-        }
+      /* get layer2 data */
+      l2neigh = oonf_layer2_neigh_get(l2net, &lnk->remote_mac);
+      if (l2neigh == NULL
+          || !oonf_layer2_has_value(&l2neigh->data[OONF_LAYER2_NEIGH_RX_BITRATE])
+          || !oonf_layer2_has_value(&l2neigh->data[OONF_LAYER2_NEIGH_TX_FRAMES])) {
+        OONF_DEBUG(LOG_PROBING, "Drop link %s (missing l2 data)",
+            netaddr_to_string(&nbuf, &l2neigh->addr));
+        continue;
       }
 
       /* get link extension for probing */
       ldata = oonf_class_get_extension(&_link_extenstion, lnk);
 
-      if (_probe_config.only_layer2) {
-        /* fix tx-packets */
-        last_tx_packets = ldata->last_tx_traffic;
-        ldata->last_tx_traffic = l2neigh->tx_packets;
+      /* fix tx-packets */
+      last_tx_packets = ldata->last_tx_traffic;
+      ldata->last_tx_traffic = oonf_layer2_get_value(&l2neigh->data[OONF_LAYER2_NEIGH_TX_FRAMES]);
 
-        /* check if link had traffic since last probe check */
-        if (last_tx_packets != l2neigh->tx_packets) {
-          /* advance timestamp */
-          ldata->last_probe_check = oonf_clock_getNow();
-          OONF_DEBUG(LOG_PROBING, "Drop link (already traffic on");
-          continue;
-        }
+      /* check if link had traffic since last probe check */
+      if (last_tx_packets != ldata->last_tx_traffic) {
+        /* advance timestamp */
+        ldata->last_probe_check = oonf_clock_getNow();
+        OONF_DEBUG(LOG_PROBING, "Drop link %s (already has unicast traffic)",
+            netaddr_to_string(&nbuf, &l2neigh->addr));
+        continue;
       }
 
       points = oonf_clock_getNow() - ldata->last_probe_check;

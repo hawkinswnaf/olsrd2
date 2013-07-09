@@ -53,7 +53,7 @@
 #include "core/oonf_plugins.h"
 #include "subsystems/oonf_class.h"
 #include "subsystems/oonf_layer2.h"
-#include "subsystems/oonf_linkconfig.h"
+// #include "subsystems/oonf_linkconfig.h"
 #include "subsystems/oonf_rfc5444.h"
 #include "subsystems/oonf_packet_socket.h"
 #include "subsystems/oonf_timer.h"
@@ -279,9 +279,9 @@ _cb_link_removed(void *ptr) {
 
 static uint64_t
 _get_rx_linkspeed(struct nhdp_link *lnk) {
-  const struct oonf_linkconfig_data *linkdata;
+  // const struct oonf_linkconfig_data *linkdata;
   struct oonf_interface_data *ifdata;
-  struct oonf_layer2_neighbor *l2neigh;
+  const struct oonf_layer2_data *l2data;
 
 #ifdef OONF_LOG_DEBUG_INFO
   struct netaddr_str nbuf;
@@ -290,51 +290,18 @@ _get_rx_linkspeed(struct nhdp_link *lnk) {
   OONF_DEBUG(LOG_FF_ETT, "Query incoming linkspeed for link %s",
       netaddr_to_string(&nbuf, &lnk->if_addr));
 
-  /* look for link configuration with originator address */
-  linkdata = oonf_linkconfig_get(
-      nhdp_interface_get_name(lnk->local_if), &lnk->neigh->originator);
-  if (linkdata != NULL
-      && linkdata->rx_bitrate != oonf_linkconfig_default.rx_bitrate) {
-    OONF_DEBUG(LOG_FF_ETT, "Found IP configured rx linkspeed");
-    return linkdata->rx_bitrate;
-  }
-
-  if (lnk->dualstack_partner) {
-    linkdata = oonf_linkconfig_get(
-        nhdp_interface_get_name(lnk->local_if),
-        &lnk->dualstack_partner->neigh->originator);
-    if (linkdata != NULL
-        && linkdata->rx_bitrate != oonf_linkconfig_default.rx_bitrate) {
-      OONF_DEBUG(LOG_FF_ETT, "Found IP configured rx linkspeed");
-      return linkdata->rx_bitrate;
-    }
-  }
-
-  /* if not found, try remote mac address */
-  linkdata = oonf_linkconfig_get(
-      nhdp_interface_get_name(lnk->local_if), &lnk->remote_mac);
-  if (linkdata != NULL
-      && linkdata->rx_bitrate != oonf_linkconfig_default.rx_bitrate) {
-    OONF_DEBUG(LOG_FF_ETT, "Found MAC configured rx linkspeed");
-    return linkdata->rx_bitrate;
-  }
-
   /* get local interface data  */
   ifdata = oonf_interface_get_data(nhdp_interface_get_name(lnk->local_if), NULL);
   if (!ifdata) {
     return 0;
   }
 
-  /* query layer2 database about neighbor */
-  l2neigh = oonf_layer2_get_neighbor(&ifdata->mac, &lnk->remote_mac);
-  if (l2neigh == NULL
-          || !oonf_layer2_neighbor_has_rx_bitrate(l2neigh)) {
-    return 0;
+  l2data = oonf_layer2_neigh_query(
+      &ifdata->mac, &lnk->remote_mac, OONF_LAYER2_NEIGH_RX_BITRATE);
+  if (l2data) {
+    return oonf_layer2_get_value(l2data);
   }
-
-  /* use linkspeed from measurement */
-  OONF_DEBUG(LOG_FF_ETT, "Found layer2 linkspeed");
-  return l2neigh->rx_bitrate;
+  return 0;
 }
 
 /**
