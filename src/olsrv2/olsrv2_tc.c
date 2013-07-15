@@ -339,7 +339,7 @@ olsrv2_tc_endpoint_add(struct olsrv2_tc_node *node,
     }
 
     /* initialize endpoint */
-    end->target.type = mesh ? OONFV2_ADDRESS_TARGET : OONFV2_NETWORK_TARGET;
+    end->target.type = mesh ? OLSRV2_ADDRESS_TARGET : OLSRV2_NETWORK_TARGET;
     avl_init(&end->_attached_networks, avl_comp_netaddr, false);
 
     /* attach to global tree */

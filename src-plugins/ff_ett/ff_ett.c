@@ -53,7 +53,6 @@
 #include "core/oonf_plugins.h"
 #include "subsystems/oonf_class.h"
 #include "subsystems/oonf_layer2.h"
-// #include "subsystems/oonf_linkconfig.h"
 #include "subsystems/oonf_rfc5444.h"
 #include "subsystems/oonf_packet_socket.h"
 #include "subsystems/oonf_timer.h"
@@ -111,7 +110,7 @@ static struct ff_ett_config _ettff_config = { 0,0,0 };
 
 struct oonf_subsystem olsrv2_ffett_subsystem = {
   .name = OONF_PLUGIN_GET_NAME(),
-  .descr = "OONFD2 Funkfeuer ETT plugin",
+  .descr = "OLSRv2 Funkfeuer ETT plugin",
   .author = "Henning Rogge",
 
   .cfg_section = &_ettff_section,

@@ -39,8 +39,8 @@
  *
  */
 
-#ifndef OONFV2_ROUTING_H_
-#define OONFV2_ROUTING_H_
+#ifndef OLSRV2_ROUTING_H_
+#define OLSRV2_ROUTING_H_
 
 #include "common/avl.h"
 #include "common/common_types.h"
@@ -169,4 +169,4 @@ olsrv2_routing_filter_remove(struct olsrv2_routing_filter *filter) {
   list_remove(&filter->_node);
 }
 
-#endif /* OONFV2_ROUTING_SET_H_ */
+#endif /* OLSRV2_ROUTING_SET_H_ */

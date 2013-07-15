@@ -532,7 +532,7 @@ _handle_working_queue(struct nhdp_domain *domain) {
       target->_dijkstra.path_cost,
       target->_dijkstra.single_hop);
 
-  if (target->type == OONFV2_NODE_TARGET) {
+  if (target->type == OLSRV2_NODE_TARGET) {
     /* get neighbor and its domain specific data */
     first_hop = target->_dijkstra.first_hop;
 

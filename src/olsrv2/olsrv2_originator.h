@@ -39,8 +39,8 @@
  *
  */
 
-#ifndef OONFV2_ORIGINATOR_SET_H_
-#define OONFV2_ORIGINATOR_SET_H_
+#ifndef OLSRV2_ORIGINATOR_SET_H_
+#define OLSRV2_ORIGINATOR_SET_H_
 
 #include "common/avl.h"
 #include "common/common_types.h"
@@ -76,4 +76,4 @@ olsrv2_originator_get_entry(const struct netaddr *addr) {
   return avl_find_element(&olsrv2_originator_set_tree, addr, entry, _node);
 }
 
-#endif /* OONFV2_ORIGINATOR_SET_H_ */
+#endif /* OLSRV2_ORIGINATOR_SET_H_ */

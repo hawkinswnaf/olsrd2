@@ -39,8 +39,8 @@
  *
  */
 
-#ifndef OONFV2_H_
-#define OONFV2_H_
+#ifndef OLSRV2_H_
+#define OLSRV2_H_
 
 #include "common/common_types.h"
 #include "common/netaddr.h"
@@ -83,4 +83,4 @@ olsrv2_get_old_originator_validity(void) {
   return olsrv2_get_tc_validity() * 2;
 }
 
-#endif /* OONFV2_H_ */
+#endif /* OLSRV2_H_ */

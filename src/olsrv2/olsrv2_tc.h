@@ -39,8 +39,8 @@
  *
  */
 
-#ifndef OONFV2_TC_H_
-#define OONFV2_TC_H_
+#ifndef OLSRV2_TC_H_
+#define OLSRV2_TC_H_
 
 #include "common/avl.h"
 #include "common/common_types.h"
@@ -54,9 +54,9 @@
 #include "olsrv2/olsrv2_routing.h"
 
 enum olsrv2_target_type {
-  OONFV2_NODE_TARGET,
-  OONFV2_ADDRESS_TARGET,
-  OONFV2_NETWORK_TARGET,
+  OLSRV2_NODE_TARGET,
+  OLSRV2_ADDRESS_TARGET,
+  OLSRV2_NETWORK_TARGET,
 };
 
 /*
@@ -214,4 +214,4 @@ olsrv2_tc_endpoint_get(struct netaddr *prefix) {
 
   return avl_find_element(&olsrv2_tc_endpoint_tree, prefix, end, _node);
 }
-#endif /* OONFV2_TC_H_ */
+#endif /* OLSRV2_TC_H_ */

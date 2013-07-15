@@ -39,8 +39,8 @@
  *
  */
 
-#ifndef OONFV2_WRITER_H_
-#define OONFV2_WRITER_H_
+#ifndef OLSRV2_WRITER_H_
+#define OLSRV2_WRITER_H_
 
 #include "common/common_types.h"
 #include "subsystems/oonf_rfc5444.h"
@@ -51,4 +51,4 @@ void olsrv2_writer_cleanup(void);
 
 EXPORT void olsrv2_writer_send_tc(void);
 
-#endif /* OONFV2_WRITER_H_ */
+#endif /* OLSRV2_WRITER_H_ */
