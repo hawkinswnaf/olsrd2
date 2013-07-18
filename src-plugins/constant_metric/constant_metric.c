@@ -87,32 +87,32 @@ static int _cb_validate_link(const struct cfg_schema_entry *entry,
 static void _cb_cfg_changed(void);
 
 /* plugin declaration */
-static struct cfg_schema_entry _ettff_entries[] = {
+static struct cfg_schema_entry _constant_entries[] = {
   _CFG_VALIDATE(CFG_LINK_ENTRY, "", "Defines the static cost to the link to a neighbor."
       " Value consists of the originator address followed by the link cost",
       .cb_validate = _cb_validate_link, .list = true),
 };
 
-static struct cfg_schema_section _ettff_section = {
+static struct cfg_schema_section _constant_section = {
   .type = OONF_PLUGIN_GET_NAME(),
   .mode = CFG_SSMODE_NAMED_WITH_DEFAULT,
   .def_name = OONF_INTERFACE_WILDCARD,
   .cb_delta_handler = _cb_cfg_changed,
-  .entries = _ettff_entries,
-  .entry_count = ARRAYSIZE(_ettff_entries),
+  .entries = _constant_entries,
+  .entry_count = ARRAYSIZE(_constant_entries),
 };
 
-struct oonf_subsystem olsrv2_ffett_subsystem = {
+struct oonf_subsystem olsrv2_constant_metric_subsystem = {
   .name = OONF_PLUGIN_GET_NAME(),
-  .descr = "OLSRv2 Funkfeuer ETT plugin",
+  .descr = "OLSRv2 Funkfeuer Constant Metric plugin",
   .author = "Henning Rogge",
 
-  .cfg_section = &_ettff_section,
+  .cfg_section = &_constant_section,
 
   .init = _init,
   .cleanup = _cleanup,
 };
-DECLARE_OONF_PLUGIN(olsrv2_ffett_subsystem);
+DECLARE_OONF_PLUGIN(olsrv2_constant_metric_subsystem);
 
 /* timer for handling new NHDP neighbors */
 static struct oonf_timer_info _setup_timer_info = {
@@ -197,6 +197,17 @@ _cb_link_added(void *ptr __attribute__((unused))) {
   oonf_timer_set(&_setup_timer, 1);
 }
 
+static struct _linkcost *
+_get_linkcost(const char *ifname, struct netaddr *originator) {
+  struct _linkcost key;
+  struct _linkcost *entry;
+
+  strscpy(key.if_name, ifname, IF_NAMESIZE);
+  memcpy(&key.neighbor, originator, sizeof(struct netaddr));
+
+  return avl_find_element(&_linkcost_tree, &key, entry, _node);
+}
+
 /**
  * Timer callback to sample new ETT values into bucket
  * @param ptr nhdp link
@@ -204,8 +215,10 @@ _cb_link_added(void *ptr __attribute__((unused))) {
 static void
 _cb_set_linkcost(void *ptr __attribute__((unused))) {
   struct nhdp_link *lnk;
-  struct _linkcost key, *entry;
+  struct _linkcost *entry;
+  struct netaddr_str nbuf;
 
+  OONF_DEBUG(LOG_CONSTANT_METRIC, "Start setting constant linkcosts");
   if (_constant_metric_handler.domain == NULL) {
     return;
   }
@@ -213,27 +226,35 @@ _cb_set_linkcost(void *ptr __attribute__((unused))) {
   list_for_each_element(&nhdp_link_list, lnk, _global_node) {
     const char *ifname;
 
+    ifname = nhdp_interface_get_name(lnk->local_if);
+    OONF_DEBUG(LOG_CONSTANT_METRIC, "Look for constant metric if=%s originator=%s",
+        ifname, netaddr_to_string(&nbuf, &lnk->neigh->originator));
+
     if (netaddr_get_address_family(&lnk->neigh->originator) == AF_UNSPEC) {
       continue;
     }
 
-    ifname = nhdp_interface_get_name(lnk->local_if);
-    strscpy(key.if_name, ifname, IF_NAMESIZE);
-    memcpy(&key.neighbor, &lnk->neigh->originator, sizeof(struct netaddr));
+    entry = _get_linkcost(ifname, &lnk->neigh->originator);
+    if (entry == NULL && nhdp_db_link_is_dualstack(lnk)) {
+      entry = _get_linkcost(ifname, &lnk->dualstack_partner->neigh->originator);
+    }
+    if (entry == NULL) {
+      entry = _get_linkcost(OONF_INTERFACE_WILDCARD, &lnk->neigh->originator);
+    }
+    if (entry == NULL && nhdp_db_link_is_dualstack(lnk)) {
+      entry = _get_linkcost(OONF_INTERFACE_WILDCARD,
+          &lnk->dualstack_partner->neigh->originator);
+    }
 
-    entry = avl_find_element(&_linkcost_tree, &key, entry, _node);
     if (entry) {
+      OONF_DEBUG(LOG_CONSTANT_METRIC, "Found metric value %u", entry->cost);
       nhdp_domain_set_incoming_metric(
           _constant_metric_handler.domain, lnk, entry->cost);
       continue;
     }
-
-    strscpy(key.if_name, OONF_INTERFACE_WILDCARD, IF_NAMESIZE);
-    entry = avl_find_element(&_linkcost_tree, &key, entry, _node);
-    if (entry) {
+    else {
       nhdp_domain_set_incoming_metric(
-          _constant_metric_handler.domain, lnk, entry->cost);
-      continue;
+          _constant_metric_handler.domain, lnk, RFC5444_METRIC_INFINITE);
     }
   }
 
@@ -262,7 +283,7 @@ _cb_validate_link(const struct cfg_schema_entry *entry,
   struct human_readable_str sbuf;
   struct netaddr_str nbuf;
   const char *ptr;
-  int8_t af[] = { AF_MAC48, AF_EUI64 };
+  int8_t af[] = { AF_INET, AF_INET6 };
 
   /* test if first word is a human readable number */
   ptr = str_cpynextword(nbuf.buf, value, sizeof(nbuf));
@@ -271,7 +292,7 @@ _cb_validate_link(const struct cfg_schema_entry *entry,
     return -1;
   }
 
-  ptr = str_cpynextword(sbuf.buf, value, sizeof(sbuf));
+  ptr = str_cpynextword(sbuf.buf, ptr, sizeof(sbuf));
   if (cfg_validate_int(out, section_name, entry->key.entry, sbuf.buf,
       RFC5444_METRIC_MIN, RFC5444_METRIC_MAX, 4, 0, false)) {
     return -1;
@@ -292,40 +313,40 @@ _cb_validate_link(const struct cfg_schema_entry *entry,
 static void
 _cb_cfg_changed(void) {
   struct _linkcost *lk, *lk_it;
-  struct cfg_entry *entry;
   struct netaddr_str nbuf;
   const char *ptr, *cost_ptr;
+  const struct const_strarray *array;
   int64_t cost;
 
   /* remove old entries for this interface */
   avl_for_each_element_safe(&_linkcost_tree, lk, _node, lk_it) {
-    if (strcasecmp(lk->if_name, _ettff_section.section_name) == 0) {
+    if (strcasecmp(lk->if_name, _constant_section.section_name) == 0) {
       avl_remove(&_linkcost_tree, &lk->_node);
       oonf_class_free(&_linkcost_class, lk);
     }
   }
 
-  if (!_ettff_section.post) {
+  array = cfg_schema_tovalue(_constant_section.post, &_constant_entries[0]);
+  if (!array) {
+    OONF_DEBUG(LOG_CONSTANT_METRIC, "1");
     return;
   }
 
-  entry = cfg_db_get_entry(_ettff_section.post, CFG_LINK_ENTRY);
-  if (!entry) {
-    return;
-  }
-
-  FOR_ALL_STRINGS(&entry->val, ptr) {
+  FOR_ALL_STRINGS(array, ptr) {
+    OONF_DEBUG(LOG_CONSTANT_METRIC, "3: %s", ptr);
     lk = oonf_class_malloc(&_linkcost_class);
     if (lk) {
       cost_ptr = str_cpynextword(nbuf.buf, ptr, sizeof(nbuf));
 
-      strscpy(lk->if_name, _ettff_section.section_name, IF_NAMESIZE);
+      strscpy(lk->if_name, _constant_section.section_name, IF_NAMESIZE);
       if (netaddr_from_string(&lk->neighbor, nbuf.buf)) {
         oonf_class_free(&_linkcost_class, lk);
+        OONF_DEBUG(LOG_CONSTANT_METRIC, "2");
         continue;
       }
       if (str_parse_human_readable_s64(&cost, cost_ptr, 0, false)) {
         oonf_class_free(&_linkcost_class, lk);
+        OONF_DEBUG(LOG_CONSTANT_METRIC, "3");
         continue;
       }
 
@@ -333,7 +354,10 @@ _cb_cfg_changed(void) {
 
       lk->_node.key = lk;
       avl_insert(&_linkcost_tree, &lk->_node);
+
+      OONF_DEBUG(LOG_CONSTANT_METRIC, "Add entry (%s)", ptr);
     }
+    OONF_DEBUG(LOG_CONSTANT_METRIC, "4");
   }
 
   /* delay updating linkcosts */

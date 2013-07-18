@@ -483,6 +483,13 @@ _write_metric_tlv(struct rfc5444_writer *writer, struct rfc5444_writer_address *
     memcpy(&metrics[2], &neighdata->metric, sizeof(uint32_t)*2);
   }
 
+  /* check if metric is infinite */
+  for (i=0; i<4; i++) {
+    if (metrics[i] == RFC5444_METRIC_INFINITE) {
+      unsent[i] = false;
+    }
+  }
+
   /* encode metrics */
   for (i=0; i<4; i++) {
     if (unsent[i]) {
@@ -509,7 +516,8 @@ _write_metric_tlv(struct rfc5444_writer *writer, struct rfc5444_writer_address *
       }
     }
 
-    OONF_DEBUG(LOG_NHDP_W, "Add Metric (ext %u): 0x%04x", domain->ext, tlv_value);
+    OONF_DEBUG(LOG_NHDP_W, "Add Metric (ext %u): 0x%04x (%u)", domain->ext, tlv_value,
+        rfc5444_metric_decode(metrics[i]));
 
     /* conversion into network byte order */
     tlv_value = htons(tlv_value);

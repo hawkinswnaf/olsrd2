@@ -441,13 +441,22 @@ nhdp_db_neighbor_addr_is_lost(const struct nhdp_naddr *naddr) {
 
 /**
  * @param lnk pointer to NHDP link
+ * @return true if link is part of a dualstack link
+ */
+static INLINE bool
+nhdp_db_link_is_dualstack(const struct nhdp_link *lnk) {
+  return lnk->dualstack_partner != NULL;
+}
+
+/**
+ * @param lnk pointer to NHDP link
  * @param af_type address family type
  * @return true if link is part of a dualstack link with the specified
  *   address family
  */
 static INLINE bool
 nhdp_db_link_is_dualstack_type(const struct nhdp_link *lnk, int af_type) {
-  return lnk->dualstack_partner != NULL
+  return nhdp_db_link_is_dualstack(lnk)
       && netaddr_get_address_family(&lnk->neigh->originator) == af_type;
 }
 

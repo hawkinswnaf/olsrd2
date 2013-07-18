@@ -432,7 +432,7 @@ _print_link(struct oonf_telnet_data *con, struct nhdp_link *lnk,
   abuf_appendf(con->out, "%s%s status=%s localif=%s"
       " vtime=%s heard=%s symmetric=%s %s%s\n",
       prefix,
-      nhdp_db_link_is_ipv6_dualstack(lnk)  ? "     " : "Link:",
+      nhdp_db_link_is_ipv6_dualstack(lnk)  ? " IPv6" : "Link:",
       status,
       nhdp_interface_get_name(lnk->local_if),
       oonf_clock_toIntervalString(&tbuf1, oonf_timer_get_due(&lnk->vtime)),
@@ -475,14 +475,14 @@ _print_neigh(struct oonf_telnet_data *con, struct nhdp_neighbor *neigh) {
   struct netaddr_str nbuf;
   struct nhdp_domain *domain;
 
-  abuf_appendf(con->out, "%s %s%s\n",
-      nhdp_db_neighbor_is_ipv6_dualstack(neigh) ? "         " : "Neighbor:",
-      neigh->symmetric > 0 ? "symmetric" : "",
-      neigh->dualstack_partner != NULL ? "dualstack" : "");
+  abuf_appendf(con->out, "%s%s%s\n",
+      nhdp_db_neighbor_is_ipv6_dualstack(neigh) ? "         " : "     IPv6",
+      neigh->symmetric > 0 ? " symmetric" : "",
+      neigh->dualstack_partner != NULL ? " dualstack" : "");
 
   list_for_each_element(&nhdp_domain_list, domain, _node) {
-    abuf_appendf(con->out, "\tMetric '%s': in=%d, out=%d, MPR=%s, MPRS=%s, will=%d\n",
-        domain->metric->name,
+    abuf_appendf(con->out, "\tMetric '%s' (%u): in=%d, out=%d, MPR=%s, MPRS=%s, will=%d\n",
+        domain->metric->name, domain->index,
         nhdp_domain_get_neighbordata(domain, neigh)->metric.in,
         nhdp_domain_get_neighbordata(domain, neigh)->metric.out,
         nhdp_domain_get_neighbordata(domain, neigh)->neigh_is_mpr ? "yes" : "no",
@@ -501,7 +501,7 @@ _print_neigh(struct oonf_telnet_data *con, struct nhdp_neighbor *neigh) {
 
   avl_for_each_element(&neigh->_neigh_addresses, naddr, _neigh_node) {
     if (avl_find(&neigh->_link_addresses, &naddr->neigh_addr) == NULL) {
-      abuf_appendf(con->out, "\tAddress on other interface: %s",
+      abuf_appendf(con->out, "\tAddress on other interface: %s\n",
           netaddr_to_string(&nbuf, &naddr->neigh_addr));
     }
   }

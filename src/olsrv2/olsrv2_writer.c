@@ -262,6 +262,76 @@ _cb_addMessageTLVs(struct rfc5444_writer *writer) {
       &itime_encoded, sizeof(itime_encoded));
 }
 
+static void
+_generate_neighbor_metric_tlvs(struct rfc5444_writer *writer,
+    struct rfc5444_writer_address *addr, struct nhdp_neighbor *neigh) {
+  struct nhdp_neighbor_domaindata *neigh_domain;
+  struct nhdp_domain *domain;
+  uint32_t metric_in, metric_out;
+  uint16_t metric_in_encoded, metric_out_encoded;
+
+  list_for_each_element(&nhdp_domain_list, domain, _node) {
+    neigh_domain = nhdp_domain_get_neighbordata(domain, neigh);
+
+    metric_in = neigh_domain->metric.in;
+    metric_in_encoded = rfc5444_metric_encode(metric_in);
+
+    metric_out = neigh_domain->metric.out;
+    metric_out_encoded = rfc5444_metric_encode(metric_out);
+
+    if (!nhdp_domain_get_neighbordata(domain, neigh)->neigh_is_mpr) {
+      /* just put in an empty metric so we don't need to start a second TLV */
+      metric_in_encoded = 0;
+
+      OONF_DEBUG(LOG_OLSRV2_W, "Add Linkmetric (ext %u) TLV with value 0x%04x",
+          domain->ext, metric_in_encoded);
+      metric_in_encoded = htons(metric_in_encoded);
+      rfc5444_writer_add_addrtlv(writer, addr, &domain->_metric_addrtlvs[0],
+          &metric_in_encoded, sizeof(metric_in_encoded), true);
+    }
+    else if (metric_in_encoded == metric_out_encoded) {
+      /* incoming and outgoing metric are the same */
+      if (metric_in < RFC5444_METRIC_INFINITE) {
+        metric_in_encoded |= RFC5444_LINKMETRIC_INCOMING_NEIGH;
+        metric_in_encoded |= RFC5444_LINKMETRIC_OUTGOING_NEIGH;
+
+        OONF_DEBUG(LOG_OLSRV2_W, "Add Linkmetric (ext %u) TLV with value 0x%04x",
+            domain->ext, metric_in_encoded);
+      }
+
+      metric_in_encoded = htons(metric_in_encoded);
+      rfc5444_writer_add_addrtlv(writer, addr, &domain->_metric_addrtlvs[0],
+          &metric_in_encoded, sizeof(metric_in_encoded), true);
+    }
+    else {
+      int metric_index = 0;
+
+      /* different metrics for incoming and outgoing link */
+      if (metric_in < RFC5444_METRIC_INFINITE) {
+        metric_in_encoded |= RFC5444_LINKMETRIC_INCOMING_NEIGH;
+
+        OONF_DEBUG(LOG_OLSRV2_W, "Add Linkmetric (ext %u) TLV with value 0x%04x",
+            domain->ext, metric_in_encoded);
+        metric_in_encoded = htons(metric_in_encoded);
+        rfc5444_writer_add_addrtlv(writer, addr,
+            &domain->_metric_addrtlvs[metric_index++],
+            &metric_in_encoded, sizeof(metric_in_encoded), true);
+      }
+
+      if (metric_out < RFC5444_METRIC_INFINITE) {
+        metric_out_encoded |= RFC5444_LINKMETRIC_OUTGOING_NEIGH;
+
+        OONF_DEBUG(LOG_OLSRV2_W, "Add Linkmetric (ext %u) TLV with value 0x%04x",
+            domain->ext, metric_out_encoded);
+        metric_out_encoded = htons(metric_out_encoded);
+        rfc5444_writer_add_addrtlv(writer, addr,
+          &domain->_metric_addrtlvs[metric_index++],
+          &metric_out_encoded, sizeof(metric_out_encoded), true);
+      }
+    }
+  }
+}
+
 /**
  * Callback for rfc5444 writer to add addresses and addresstlvs to tc
  * @param writer
@@ -272,12 +342,12 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
   struct rfc5444_writer_address *addr;
   struct nhdp_neighbor *neigh;
   struct nhdp_naddr *naddr;
-  struct nhdp_neighbor_domaindata *neigh_domain;
   struct nhdp_domain *domain;
   struct olsrv2_lan_entry *lan;
   bool any_advertised;
   uint8_t nbr_addrtype_value;
-  uint16_t metric_in, metric_out;
+  uint32_t metric_out;
+  uint16_t metric_out_encoded;
 
 #ifdef OONF_LOG_DEBUG_INFO
   struct netaddr_str buf;
@@ -288,17 +358,17 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
   /* iterate over neighbors */
   list_for_each_element(&nhdp_neigh_list, neigh, _global_node) {
     any_advertised = false;
-    /* calculate advertised array */
+    /* see if we have been selected as a MPR by this neighbor */
     list_for_each_element(&nhdp_domain_list, domain, _node) {
-      if (nhdp_domain_get_neighbordata(domain, neigh)->neigh_is_mpr) {
+      if (nhdp_domain_get_neighbordata(domain, neigh)->local_is_mpr) {
+        /* found one */
         any_advertised = true;
         break;
       }
     }
 
     if (!any_advertised) {
-      /* neighbor is not advertised */
-      OONF_DEBUG(LOG_OLSRV2_W, "Unadvertised neighbor");
+      /* we are not a MPR for this neighbor, so we don't advertise the neighbor */
       continue;
     }
 
@@ -312,10 +382,10 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
       nbr_addrtype_value = 0;
 
       if (netaddr_acl_check_accept(routable_acl, &naddr->neigh_addr)) {
-        nbr_addrtype_value += RFC5444_NBR_ADDR_TYPE_ROUTABLE;
+        nbr_addrtype_value |= RFC5444_NBR_ADDR_TYPE_ROUTABLE;
       }
       if (netaddr_cmp(&neigh->originator, &naddr->neigh_addr) == 0) {
-        nbr_addrtype_value += RFC5444_NBR_ADDR_TYPE_ORIGINATOR;
+        nbr_addrtype_value |= RFC5444_NBR_ADDR_TYPE_ORIGINATOR;
       }
 
       if (nbr_addrtype_value == 0) {
@@ -340,51 +410,7 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
           &nbr_addrtype_value, sizeof(nbr_addrtype_value), false);
 
       /* add linkmetric TLVs */
-      list_for_each_element(&nhdp_domain_list, domain, _node) {
-        neigh_domain = nhdp_domain_get_neighbordata(domain, neigh);
-
-        metric_in = rfc5444_metric_encode(neigh_domain->metric.in);
-        metric_out = rfc5444_metric_encode(neigh_domain->metric.out);
-
-        if (!nhdp_domain_get_neighbordata(domain, neigh)->neigh_is_mpr) {
-          /* just put in an empty metric so we don't need to start a second TLV */
-          metric_in = 0;
-
-          OONF_DEBUG(LOG_OLSRV2_W, "Add Linkmetric (ext %u) TLV with value 0x%04x",
-              domain->ext, metric_in);
-          metric_in = htons(metric_in);
-          rfc5444_writer_add_addrtlv(writer, addr, &domain->_metric_addrtlvs[0],
-              &metric_in, sizeof(metric_in), true);
-        }
-        else if (metric_in == metric_out) {
-          /* incoming and outgoing metric are the same */
-          metric_in |= RFC5444_LINKMETRIC_INCOMING_NEIGH;
-          metric_in |= RFC5444_LINKMETRIC_OUTGOING_NEIGH;
-
-          OONF_DEBUG(LOG_OLSRV2_W, "Add Linkmetric (ext %u) TLV with value 0x%04x",
-              domain->ext, metric_in);
-          metric_in = htons(metric_in);
-          rfc5444_writer_add_addrtlv(writer, addr, &domain->_metric_addrtlvs[0],
-              &metric_in, sizeof(metric_in), true);
-        }
-        else {
-          /* different metrics for incoming and outgoing link */
-          metric_in |= RFC5444_LINKMETRIC_INCOMING_NEIGH;
-          metric_out |= RFC5444_LINKMETRIC_OUTGOING_NEIGH;
-
-          OONF_DEBUG(LOG_OLSRV2_W, "Add Linkmetric (ext %u) TLV with value 0x%04x",
-              domain->ext, metric_in);
-          metric_in = htons(metric_in);
-          rfc5444_writer_add_addrtlv(writer, addr, &domain->_metric_addrtlvs[0],
-              &metric_in, sizeof(metric_in), true);
-
-          OONF_DEBUG(LOG_OLSRV2_W, "Add Linkmetric (ext %u) TLV with value 0x%04x",
-              domain->ext, metric_out);
-          metric_out = htons(metric_out);
-          rfc5444_writer_add_addrtlv(writer, addr, &domain->_metric_addrtlvs[1],
-              &metric_out, sizeof(metric_out), true);
-        }
-      }
+      _generate_neighbor_metric_tlvs(writer, addr, neigh);
     }
   }
 
@@ -406,18 +432,23 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
 
     /* add Gateway TLV and Metric TLV */
     list_for_each_element(&nhdp_domain_list, domain, _node) {
-      metric_out = rfc5444_metric_encode(lan->data[domain->index].outgoing_metric);
-      metric_out |= RFC5444_LINKMETRIC_OUTGOING_NEIGH;
+      metric_out = lan->data[domain->index].outgoing_metric;
+      if (metric_out >= RFC5444_METRIC_INFINITE) {
+        continue;
+      }
+
+      metric_out_encoded = rfc5444_metric_encode(metric_out);
+      metric_out_encoded |= RFC5444_LINKMETRIC_OUTGOING_NEIGH;
 
       /* add Metric TLV */
       OONF_DEBUG(LOG_OLSRV2_W, "Add Linkmetric (ext %u) TLV with value 0x%04x",
-          domain->ext, metric_out);
+          domain->ext, metric_out_encoded);
       rfc5444_writer_add_addrtlv(writer, addr, &domain->_metric_addrtlvs[0],
-          &metric_out, sizeof(metric_out), false);
+          &metric_out_encoded, sizeof(metric_out_encoded), false);
 
       /* add Gateway TLV */
       OONF_DEBUG(LOG_OLSRV2_W, "Add Gateway (ext %u) TLV with value 0x%04x",
-          domain->ext, metric_in);
+          domain->ext, metric_out_encoded);
       rfc5444_writer_add_addrtlv(writer, addr, &_gateway_addrtlvs[domain->index],
           &lan->data[domain->index]. distance, 1, false);
     }
