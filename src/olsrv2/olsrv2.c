@@ -612,7 +612,7 @@ _parse_lan_array(struct cfg_named_section *section, bool add) {
     return;
   }
 
-  FOR_ALL_STRINGS(&entry->val, value) {
+  strarray_for_each_element(&entry->val, value) {
     /* extract data */
     ptr = str_cpynextword(addr_buf.buf, value, sizeof(addr_buf));
     if (netaddr_from_string(&prefix, addr_buf.buf)) {
@@ -653,7 +653,7 @@ _cb_topology(struct oonf_telnet_data *con) {
   struct olsrv2_tc_attachment *end;
   struct nhdp_domain *domain;
   struct netaddr_str nbuf;
-  struct human_readable_str tbuf;
+  struct isonumber_str tbuf;
 
   avl_for_each_element(&olsrv2_tc_tree, node, _originator_node) {
     abuf_appendf(con->out, "Node originator %s: vtime=%s ansn=%u\n",

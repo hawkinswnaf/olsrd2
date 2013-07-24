@@ -280,7 +280,7 @@ _avlcmp_linkcost(const void *ptr1, const void *ptr2) {
 static int
 _cb_validate_link(const struct cfg_schema_entry *entry,
       const char *section_name, const char *value, struct autobuf *out) {
-  struct human_readable_str sbuf;
+  struct isonumber_str sbuf;
   struct netaddr_str nbuf;
   const char *ptr;
   int8_t af[] = { AF_INET, AF_INET6 };
@@ -332,7 +332,7 @@ _cb_cfg_changed(void) {
     return;
   }
 
-  FOR_ALL_STRINGS(array, ptr) {
+  strarray_for_each_element(array, ptr) {
     OONF_DEBUG(LOG_CONSTANT_METRIC, "3: %s", ptr);
     lk = oonf_class_malloc(&_linkcost_class);
     if (lk) {
@@ -344,7 +344,7 @@ _cb_cfg_changed(void) {
         OONF_DEBUG(LOG_CONSTANT_METRIC, "2");
         continue;
       }
-      if (str_parse_human_readable_s64(&cost, cost_ptr, 0, false)) {
+      if (str_from_isonumber_s64(&cost, cost_ptr, 0, false)) {
         oonf_class_free(&_linkcost_class, lk);
         OONF_DEBUG(LOG_CONSTANT_METRIC, "3");
         continue;
