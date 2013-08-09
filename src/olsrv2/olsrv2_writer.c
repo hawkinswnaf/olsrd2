@@ -384,6 +384,7 @@ _cb_addAddresses(struct rfc5444_writer *writer) {
       if (netaddr_acl_check_accept(routable_acl, &naddr->neigh_addr)) {
         nbr_addrtype_value |= RFC5444_NBR_ADDR_TYPE_ROUTABLE;
       }
+      // TODO: what is about MPR settings?
       if (netaddr_cmp(&neigh->originator, &naddr->neigh_addr) == 0) {
         nbr_addrtype_value |= RFC5444_NBR_ADDR_TYPE_ORIGINATOR;
       }
