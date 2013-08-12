@@ -811,6 +811,7 @@ _cb_cfg_domain_changed(void) {
     return;
   }
 
+  memset(&rtdomain, 0, sizeof(rtdomain));
   if (cfg_schema_tobin(&rtdomain, _rt_domain_section.post,
       _rt_domain_entries, ARRAYSIZE(_rt_domain_entries))) {
     OONF_WARN(LOG_NHDP, "Cannot convert OLSRV2 routing domain parameters.");
