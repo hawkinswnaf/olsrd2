@@ -58,6 +58,7 @@
 #include "core/oonf_logging_cfg.h"
 #include "core/oonf_plugins.h"
 #include "core/oonf_subsystem.h"
+#include "core/os_core.h"
 #include "subsystems/oonf_clock.h"
 #include "subsystems/oonf_interface.h"
 #include "subsystems/oonf_socket.h"
@@ -261,6 +262,15 @@ main(int argc, char **argv) {
   }
 #endif
 
+  if (config_global.lockfile != NULL && *config_global.lockfile != 0) {
+    /* create application lock */
+    if (os_core_create_lockfile(config_global.lockfile)) {
+      OONF_WARN(LOG_MAIN, "Could not acquire application lock '%s'",
+          config_global.lockfile);
+      goto olsrd_cleanup;
+    }
+  }
+
   /* initialize framework */
   for (initialized=0; initialized<subsystem_count; initialized++) {
     if (subsystems[initialized]->init != NULL) {
@@ -291,7 +301,8 @@ main(int argc, char **argv) {
 
   if (fork_pipe != -1) {
     /* tell main process that we are finished with initialization */
-    daemonize_finish(fork_pipe, 0);
+    OONF_WARN(LOG_MAIN, "Pidfile: %s", config_global.pidfile);
+    daemonize_finish(fork_pipe, 0, config_global.pidfile);
     fork_pipe = -1;
   }
 
@@ -337,7 +348,7 @@ olsrd_cleanup:
 
   if (fork_pipe != -1) {
     /* tell main process that we had a problem */
-    daemonize_finish(fork_pipe, return_code);
+    daemonize_finish(fork_pipe, return_code, NULL);
   }
 
   free (subsystems);
