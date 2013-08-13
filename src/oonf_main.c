@@ -301,8 +301,11 @@ main(int argc, char **argv) {
 
   if (fork_pipe != -1) {
     /* tell main process that we are finished with initialization */
-    OONF_WARN(LOG_MAIN, "Pidfile: %s", config_global.pidfile);
-    daemonize_finish(fork_pipe, 0, config_global.pidfile);
+    if (daemonize_finish(fork_pipe, 0, config_global.pidfile)) {
+      OONF_WARN(LOG_MAIN, "Could not write pidfile %s",
+          config_global.pidfile);
+      goto olsrd_cleanup;
+    }
     fork_pipe = -1;
   }
 
