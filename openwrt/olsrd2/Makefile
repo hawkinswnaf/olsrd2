@@ -36,7 +36,7 @@ endef
 define Package/olsrd2-git
 	$(call Package/olsrd2-git/template)
 	TITLE:=OLSRd V2 Routing Agent
-	DEPENDS:=+oonf-api-git +ldconfig +librt
+	DEPENDS:=+oonf-api-git +ldconfig +librt +libnl-tiny
 endef
 
 define Package/olsrd2-git-plugin-ff-ett

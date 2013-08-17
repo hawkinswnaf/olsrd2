@@ -177,7 +177,9 @@ _cleanup(void) {
 static bool
 _cb_rt_filter(struct nhdp_domain *domain, struct os_route *route) {
   struct _routemodifier *modifier;
+#ifdef OONF_LOG_DEBUG_INFO
   struct netaddr_str nbuf;
+#endif
 
   avl_for_each_element(&_modifier_tree, modifier, _node) {
     /* check filter matches this domain */

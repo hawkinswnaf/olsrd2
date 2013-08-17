@@ -216,7 +216,9 @@ static void
 _cb_set_linkcost(void *ptr __attribute__((unused))) {
   struct nhdp_link *lnk;
   struct _linkcost *entry;
+#ifdef OONF_LOG_DEBUG_INFO
   struct netaddr_str nbuf;
+#endif
 
   OONF_DEBUG(LOG_CONSTANT_METRIC, "Start setting constant linkcosts");
   if (_constant_metric_handler.domain == NULL) {
