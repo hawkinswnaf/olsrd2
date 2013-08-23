@@ -201,7 +201,7 @@ static struct oonf_class_extension _nhdp_2hop_listener = {
 };
 
 /* global variables */
-static uint64_t _ll4_startup_delay = 10;
+static uint64_t _ll4_startup_delay = 10*1000;
 
 /**
  * Initialize plugin
