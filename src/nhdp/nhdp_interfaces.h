@@ -57,8 +57,8 @@ struct nhdp_interface_addr;
 
 #include "nhdp/nhdp_db.h"
 
-#define NHDP_INTERFACE         "nhdp_interf"
-#define NHDP_INTERFACE_ADDRESS "nhdp_iaddr"
+#define NHDP_CLASS_INTERFACE         "nhdp_interf"
+#define NHDP_CLASS_INTERFACE_ADDRESS "nhdp_iaddr"
 
 /**
  * nhdp_interface represents a local interface participating in the mesh network
@@ -66,6 +66,9 @@ struct nhdp_interface_addr;
 struct nhdp_interface {
   /* listener for interface events */
   struct oonf_rfc5444_interface_listener rfc5444_if;
+
+  /* make sure interface data is available */
+  struct oonf_interface_listener core_if_listener;
 
   /* interval between two hellos sent through this interface */
   uint64_t refresh_interval;
@@ -257,9 +260,9 @@ nhdp_interface_link_get_by_originator(
  * @param nhdp_if pointer to nhdp interface
  * @return pointer to corresponding oonf_interface
  */
-static inline struct oonf_interface *
+static INLINE struct oonf_interface *
 nhdp_interface_get_coreif(struct nhdp_interface *nhdp_if) {
-  return oonf_rfc5444_get_core_interface(nhdp_if->rfc5444_if.interface);
+  return nhdp_if->core_if_listener.interface;
 }
 
 #endif /* NHDP_INTERFACES_H_ */

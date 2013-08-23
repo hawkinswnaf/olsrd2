@@ -75,7 +75,7 @@ struct avl_tree nhdp_ifaddr_tree;
 
 /* memory and timers for nhdp interface objects */
 static struct oonf_class _interface_info = {
-  .name = NHDP_INTERFACE,
+  .name = NHDP_CLASS_INTERFACE,
   .size = sizeof(struct nhdp_interface),
 };
 
@@ -86,7 +86,7 @@ static struct oonf_timer_info _interface_hello_timer = {
 };
 
 static struct oonf_class _addr_info = {
-  .name = NHDP_INTERFACE_ADDRESS,
+  .name = NHDP_CLASS_INTERFACE_ADDRESS,
   .size = sizeof(struct nhdp_interface_addr),
 };
 
@@ -220,6 +220,10 @@ nhdp_interface_add(const char *name) {
       return NULL;
     }
 
+    /* allocate core interface */
+    interf->core_if_listener.name = interf->rfc5444_if.interface->name;
+    oonf_interface_add_listener(&interf->core_if_listener);
+
     /* initialize timers */
     interf->_hello_timer.info = &_interface_hello_timer;
     interf->_hello_timer.cb_context = interf;
@@ -271,6 +275,7 @@ nhdp_interface_remove(struct nhdp_interface *interf) {
     nhdp_db_link_remove(lnk);
   }
 
+  oonf_interface_remove_listener(&interf->core_if_listener);
   oonf_rfc5444_remove_interface(interf->rfc5444_if.interface, &interf->rfc5444_if);
   avl_remove(&nhdp_interface_tree, &interf->_node);
   oonf_class_free(&_interface_info, interf);

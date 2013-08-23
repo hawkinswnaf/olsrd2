@@ -205,10 +205,7 @@ struct nhdp_l2hop {
   /* address of two-hop neighbor */
   struct netaddr twohop_addr;
 
-  /*
-   * link entry for two-hop address, might be NULL if only learned as
-   * an "other neighbor" through a HELLO
-   */
+  /* link entry for two-hop address */
   struct nhdp_link *link;
 
   /* validity time for this address */

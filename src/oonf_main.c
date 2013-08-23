@@ -318,6 +318,7 @@ main(int argc, char **argv) {
       subsystems[i]->initiate_shutdown();
     }
   }
+  oonf_plugins_initiate_shutdown();
 
   /* wait for 500 milliseconds and process socket events */
   if (oonf_clock_update()) {

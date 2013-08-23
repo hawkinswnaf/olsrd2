@@ -39,6 +39,8 @@
  *
  */
 
+#include <errno.h>
+
 #include "common/avl.h"
 #include "common/avl_comp.h"
 #include "common/common_types.h"
@@ -788,7 +790,8 @@ _cb_route_finished(struct os_route *route, int error) {
 
   if (error) {
     /* an error happened, try again later */
-    if (error != -1) {
+    if ((!rtentry->set && error != -1&& error != ESRCH)
+        || (rtentry->set && error != -1)) {
       /* do not display a os_routing_interrupt() caused error */
       OONF_WARN(LOG_OLSRV2_ROUTING, "Error in route %s %s: %s (%d)",
           rtentry->set ? "setting" : "removal",
