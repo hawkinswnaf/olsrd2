@@ -85,7 +85,7 @@ struct _nhdp_if_autoll4 {
   /* true if interface LL4 is handled by this plugin */
   bool active;
 
-  /* data structure for setting and resetting autoconfigured address */
+  /* data structure for setting and resetting auto-configured address */
   struct os_system_address os_addr;
 
   /* currently configured address */
@@ -140,7 +140,7 @@ static struct cfg_schema_section _if_section = {
 
 static struct cfg_schema_entry _auto_ll4_entries[] = {
   CFG_MAP_CLOCK(_config, startup_delay, "startup", "10",
-      "Startup time until first autoconfigured IPv4 linklocal should be selected."),
+      "Startup time until first auto-configuredIPv4 linklocal should be selected."),
 };
 
 static struct cfg_schema_section _auto_ll4_section = {
@@ -220,6 +220,9 @@ _init(void) {
   return 0;
 }
 
+/**
+ * Initiate cleanup of plugin.
+ */
 static void
 _initiate_shutdown(void) {
   struct nhdp_interface *nhdp_if;
@@ -241,6 +244,10 @@ _cleanup(void) {
   oonf_timer_remove(&_startup_timer_info);
 }
 
+/**
+ * NHDP interface is going down, cleanup the auto_ll4 parts of it.
+ * @param nhdp_if pointer to NHDP interface
+ */
 static void
 _cleanup_nhdp_if_extension(struct nhdp_interface *nhdp_if) {
   struct _nhdp_if_autoll4 *auto_ll4;
@@ -252,7 +259,7 @@ _cleanup_nhdp_if_extension(struct nhdp_interface *nhdp_if) {
   auto_ll4->os_addr.cb_finished = NULL;
   os_system_ifaddr_interrupt(&auto_ll4->os_addr);
 
-  /* cleanup */
+  /* cleanup address if necessary */
   netaddr_invalidate(&auto_ll4->auto_ll4_addr);
   if (auto_ll4->active) {
     _commit_address(auto_ll4);
@@ -260,9 +267,15 @@ _cleanup_nhdp_if_extension(struct nhdp_interface *nhdp_if) {
   netaddr_invalidate(&auto_ll4->os_addr.address);
   auto_ll4->active = false;
 
+  /* stop update timer */
   oonf_timer_stop(&auto_ll4->update_timer);
 }
 
+/**
+ * Callback triggered when the plugin should check if the autoconfigured
+ * address is still okay.
+ * @param ptr pointer to NHDP interface
+ */
 static void
 _cb_check_addresses(void *ptr) {
   struct nhdp_interface *nhdp_if;
@@ -272,7 +285,7 @@ _cb_check_addresses(void *ptr) {
   nhdp_if = ptr;
   auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
 
-  OONF_DEBUG(LOG_AUTO_LL4, "Trigger processing of autoconfigured address");
+  OONF_DEBUG(LOG_AUTO_LL4, "Trigger processing of auto-configured address");
 
   /* not startup anymore */
   auto_ll4->startup = false;
@@ -286,6 +299,10 @@ _cb_check_addresses(void *ptr) {
   }
 }
 
+/**
+ * Callback triggered when a new NHDP interface is added to the database
+ * @param ptr pointer to NHDP interface
+ */
 static void
 _cb_add_nhdp_interface(void *ptr) {
   struct nhdp_interface *nhdp_if;
@@ -307,11 +324,21 @@ _cb_add_nhdp_interface(void *ptr) {
   oonf_timer_set(&auto_ll4->update_timer, _ll4_startup_delay);
 }
 
+/**
+ * Callback triggered when a NHDP interface is removed from the database
+ * @param ptr pointer to NHDP interface
+ */
 static void
 _cb_remove_nhdp_interface(void *ptr) {
   _cleanup_nhdp_if_extension(ptr);
 }
 
+/**
+ * Callback triggered when the kernel acknowledged that an address has
+ * been set on an interface (or not, because an error happened)
+ * @param os_addr pointer to address parameters
+ * @param error 0 if address was set, otherwise an error happened
+ */
 static void
 _cb_address_finished(struct os_system_address *os_addr, int error) {
   struct _nhdp_if_autoll4 *auto_ll4;
@@ -346,6 +373,11 @@ _cb_address_finished(struct os_system_address *os_addr, int error) {
   oonf_timer_set(&auto_ll4->update_timer, 1);
 }
 
+/**
+ * Set/reset an address on a NHDP interface
+ * @param auto_ll4 pointer to data structure for auto-configured
+ * addresses on a NHDP interface
+ */
 static void
 _commit_address(struct _nhdp_if_autoll4 *auto_ll4) {
   struct netaddr_str nbuf;
@@ -378,6 +410,11 @@ _commit_address(struct _nhdp_if_autoll4 *auto_ll4) {
   os_system_ifaddr_set(&auto_ll4->os_addr);
 }
 
+/**
+ * IP auto-configure mode changed
+ * @param nhdp_if pointer to NHDP interface
+ * @param new_mode new mode (off, on, detect)
+ */
 static void
 _change_mode(struct nhdp_interface *nhdp_if, enum _auto_ll4_mode new_mode) {
   struct oonf_interface_data *ifdata;
@@ -417,7 +454,7 @@ _change_mode(struct nhdp_interface *nhdp_if, enum _auto_ll4_mode new_mode) {
     auto_ll4->active = false;
   }
 
-  OONF_DEBUG(LOG_AUTO_LL4, "%s autoconfigred address on interface %s",
+  OONF_DEBUG(LOG_AUTO_LL4, "%s auto-configured address on interface %s",
       auto_ll4->active ? "Set" : "Reset", ifdata->name);
 
   if (!auto_ll4->active) {
@@ -431,12 +468,26 @@ _change_mode(struct nhdp_interface *nhdp_if, enum _auto_ll4_mode new_mode) {
   }
 }
 
+/**
+ * Calculates host part of an auto-configured address
+ * based on a hash value
+ * @param key pointer to data that should be hashed
+ * @param len length of data that should be hashed
+ * @return number between 256 (.1.0) and 65279 (.254.255)
+ */
 uint16_t
 _calculate_host_part(const char *key, size_t len)
 {
   uint32_t hash, i;
 
-  /* step 1: calculate Jenkins hash */
+  /*
+   * step 1: calculate Jenkins hash
+   *
+   * This is no cryptographic secure has, it doesn't need
+   * to be. Its just to make sure all 6 byte of the MAC
+   * address are the source of the two-byte host part
+   * of the auto-configuredIP.
+   */
   for(hash = i = 0; i < len; ++i)
   {
     hash += key[i];
@@ -451,6 +502,13 @@ _calculate_host_part(const char *key, size_t len)
   return htons((hash % (254 * 256)) + 256);
 }
 
+/**
+ * Check if an auto-configured address has a collision
+ * @param auto_ll4 pointer to data structure for auto-configured
+ * @param hash hash value that could collide with auto-configured IP
+ * @param addr address that could collide with auto-configured IP
+ * @return true if address collides, false otherwise
+ */
 static bool
 _is_address_collision(struct netaddr *auto_ll4, uint16_t hash, struct netaddr *addr) {
   if (netaddr_get_address_family(addr) == AF_INET) {
@@ -466,6 +524,15 @@ _is_address_collision(struct netaddr *auto_ll4, uint16_t hash, struct netaddr *a
   return false;
 }
 
+/**
+ * Checks if an address would collide with any neighbor on a
+ * NHDP interface, both one- and two-hop.
+ * @param nhdp_if pointer to NHDP interface
+ * @param addr pointer to address that might collide
+ * @param hash pointer to hash of address that could collide
+ * @return true if address or hash collides with known neighbor,
+ *   false otherwise
+ */
 static bool
 _nhdp_if_has_collision(struct nhdp_interface *nhdp_if, struct netaddr *addr, uint16_t hash) {
   struct nhdp_link *lnk;
@@ -489,6 +556,11 @@ _nhdp_if_has_collision(struct nhdp_interface *nhdp_if, struct netaddr *addr, uin
   return false;
 }
 
+/**
+ * Generate a new auto-configured address on an interface
+ * @param nhdp_if pointer to NHDP interface
+ * @param auto_ll4 pointer to auto-configure data within NHDP interface
+ */
 static void
 _generate_address(struct nhdp_interface *nhdp_if,
     struct _nhdp_if_autoll4 *auto_ll4) {
@@ -514,7 +586,7 @@ _generate_address(struct nhdp_interface *nhdp_if,
     netaddr_set_prefix_length(&auto_ll4->auto_ll4_addr, 16);
   }
 
-  OONF_DEBUG(LOG_AUTO_LL4, "See if %s is a good autoconfigured address for interface %s",
+  OONF_DEBUG(LOG_AUTO_LL4, "See if %s is a good auto-configured address for interface %s",
       netaddr_to_string(&nbuf, &auto_ll4->auto_ll4_addr), ifdata->name);
 
   /* check for collisions */
@@ -524,7 +596,7 @@ _generate_address(struct nhdp_interface *nhdp_if,
     netaddr_create_host_bin(&auto_ll4->auto_ll4_addr, &NETADDR_IPV4_LINKLOCAL,
         &hash, sizeof(hash));
     OONF_DEBUG(LOG_AUTO_LL4, "Collision, randomizing address!"
-        " See if %s is a good autoconfigured address for interface %s",
+        " See if %s is a good auto-configured address for interface %s",
         netaddr_to_string(&nbuf, &auto_ll4->auto_ll4_addr), ifdata->name);
   }
 
@@ -532,6 +604,10 @@ _generate_address(struct nhdp_interface *nhdp_if,
   _commit_address(auto_ll4);
 }
 
+/**
+ * Callback triggered when a link address of a NHDP neighbor changes
+ * @param ptr pointer to NHDP link address
+ */
 static void
 _cb_laddr_change(void *ptr) {
   struct nhdp_laddr *laddr;
@@ -548,6 +624,10 @@ _cb_laddr_change(void *ptr) {
   }
 }
 
+/**
+ * Callback triggered when a two-hop address of a NHDP neighbor changes
+ * @param ptr pointer to NHDP two-hop address
+ */
 static void
 _cb_2hop_change(void *ptr) {
   struct nhdp_l2hop *l2hop;
@@ -565,7 +645,7 @@ _cb_2hop_change(void *ptr) {
 }
 
 /**
- * Callback triggered when configuration changes
+ * Callback triggered when plugin configuration changes
  */
 static void
 _cb_ll4_cfg_changed(void) {
@@ -595,6 +675,9 @@ _cb_ll4_cfg_changed(void) {
   }
 }
 
+/**
+ * Plugin triggered when interface auto-configuration parameter changes
+ */
 static void
 _cb_if_cfg_changed(void) {
   struct nhdp_interface *nhdp_if;
