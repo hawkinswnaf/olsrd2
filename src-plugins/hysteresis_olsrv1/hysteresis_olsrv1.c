@@ -132,7 +132,7 @@ DECLARE_OONF_PLUGIN(olsrv2_hysteresis_olsrv1_subsystem);
 
 /* storage extension for nhdp_link */
 struct oonf_class_extension _link_extenstion = {
-  .name = "hysteresis_olsrv1",
+  .ext_name = "hysteresis_olsrv1",
   .class_name = NHDP_CLASS_LINK,
   .size = sizeof(struct link_hysteresis_data),
   .cb_add = _cb_link_added,

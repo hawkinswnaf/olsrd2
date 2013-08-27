@@ -312,13 +312,16 @@ main(int argc, char **argv) {
   /* activate mainloop */
   return_code = mainloop(argc, argv);
 
+  /* tell plugins shutdown is in progress */
+  oonf_plugins_initiate_shutdown();
+
   /* tell framework shutdown is in progress */
-  for (i=0; i<subsystem_count; i++) {
+  i = initialized;
+  while (i-- > 0) {
     if (subsystems[i]->initiate_shutdown != NULL) {
       subsystems[i]->initiate_shutdown();
     }
   }
-  oonf_plugins_initiate_shutdown();
 
   /* wait for 500 milliseconds and process socket events */
   if (oonf_clock_update()) {

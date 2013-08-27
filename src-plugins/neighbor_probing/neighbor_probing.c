@@ -122,7 +122,7 @@ struct _config _probe_config;
 
 /* storage extension and listeners */
 static struct oonf_class_extension _link_extenstion = {
-  .name = "probing linkmetric",
+  .ext_name = "probing linkmetric",
   .class_name = NHDP_CLASS_LINK,
   .size = sizeof(struct _probing_link_data),
   .cb_remove = _cb_link_removed,

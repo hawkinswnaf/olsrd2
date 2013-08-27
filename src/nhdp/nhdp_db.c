@@ -223,8 +223,10 @@ void
 nhdp_db_neighbor_remove(struct nhdp_neighbor *neigh) {
   struct nhdp_naddr *naddr, *na_it;
   struct nhdp_link *lnk, *l_it;
+  struct netaddr_str nbuf;
 
-  OONF_DEBUG(LOG_NHDP, "Remove Neighbor: 0x%0zx", (size_t)neigh);
+  OONF_DEBUG(LOG_NHDP, "Remove Neighbor: 0x%0zx (%s)",
+      (size_t)neigh, netaddr_to_string(&nbuf, &neigh->originator));
 
   /* trigger event */
   oonf_class_event(&_neigh_info, neigh, OONF_OBJECT_REMOVED);

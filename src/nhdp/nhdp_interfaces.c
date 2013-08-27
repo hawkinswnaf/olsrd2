@@ -241,8 +241,11 @@ nhdp_interface_add(const char *name) {
     /* init link address tree */
     avl_init(&interf->_link_addresses, avl_comp_netaddr, false);
 
-    /* init originator tree */
-    avl_init(&interf->_link_originators, avl_comp_netaddr, false);
+    /*
+     * init originator tree
+     * (might temporarily have multiple links with the same originator)
+     */
+    avl_init(&interf->_link_originators, avl_comp_netaddr, true);
 
     /* trigger event */
     oonf_class_event(&_interface_info, interf, OONF_OBJECT_ADDED);

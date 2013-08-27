@@ -131,7 +131,7 @@ static struct rfc5444_reader_tlvblock_consumer _packet_consumer = {
 
 /* storage extension and listeners */
 static struct oonf_class_extension _link_extenstion = {
-  .name = "ettff linkmetric",
+  .ext_name = "ettff linkmetric",
   .class_name = NHDP_CLASS_LINK,
   .size = sizeof(struct link_ettff_data),
 

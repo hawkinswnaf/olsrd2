@@ -132,7 +132,7 @@ static struct nhdp_domain_metric _constant_metric_handler = {
 
 /* NHDP link listeners */
 static struct oonf_class_extension _link_extenstion = {
-  .name = "constant linkmetric",
+  .ext_name = "constant linkmetric",
   .class_name = NHDP_CLASS_LINK,
 
   .cb_add = _cb_link_added,

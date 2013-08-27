@@ -211,9 +211,9 @@ _cleanup(void) {
     oonf_telnet_remove(&_cmds[i]);
   }
 
-  nhdp_domain_cleanup();
-  nhdp_interfaces_cleanup();
   nhdp_db_cleanup();
+  nhdp_interfaces_cleanup();
+  nhdp_domain_cleanup();
 }
 
 /**

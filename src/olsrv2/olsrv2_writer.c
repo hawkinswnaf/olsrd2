@@ -101,7 +101,7 @@ static struct rfc5444_writer_tlvtype _olsrv2_addrtlvs[] = {
 static struct rfc5444_writer_tlvtype _gateway_addrtlvs[NHDP_MAXIMUM_DOMAINS];
 
 static struct oonf_class_extension _domain_listener = {
-  .name = "olsrv2 writer",
+  .ext_name = "olsrv2 writer",
   .class_name = NHDP_CLASS_DOMAIN,
 
   .cb_add = _cb_initialize_gatewaytlv,

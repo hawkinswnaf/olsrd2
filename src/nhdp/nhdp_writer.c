@@ -485,7 +485,7 @@ _write_metric_tlv(struct rfc5444_writer *writer, struct rfc5444_writer_address *
 
   /* check if metric is infinite */
   for (i=0; i<4; i++) {
-    if (metrics[i] == RFC5444_METRIC_INFINITE) {
+    if (unsent[i] && metrics[i] == RFC5444_METRIC_INFINITE) {
       unsent[i] = false;
     }
   }

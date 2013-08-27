@@ -97,21 +97,19 @@ static int _init(void);
 static void _initiate_shutdown(void);
 static void _cleanup(void);
 
-static void _cleanup_nhdp_if_extension(struct nhdp_interface *nhdp_if);
-static void _cb_check_addresses(void *);
+static void _cb_update_timer(void *);
 static void _cb_add_nhdp_interface(void *);
 static void _cb_remove_nhdp_interface(void *);
 static void _cb_address_finished(struct os_system_address *, int);
 static void _commit_address(struct _nhdp_if_autoll4 *auto_ll4);
 static void _change_mode(struct nhdp_interface *nhdp_if,
     enum _auto_ll4_mode new_mode);
-uint16_t _calculate_host_part(const char *key, size_t len);
+uint16_t _calculate_host_part(const struct netaddr *addr);
 static bool _is_address_collision(
-    struct netaddr *auto_ll4, uint16_t hash, struct netaddr *addr);
+    struct netaddr *auto_ll4, struct netaddr *addr);
 static bool _nhdp_if_has_collision(
-    struct nhdp_interface *nhdp_if, struct netaddr *addr, uint16_t hash);
-static void _generate_address(struct nhdp_interface *nhdp_if,
-    struct _nhdp_if_autoll4 *auto_ll4);
+    struct nhdp_interface *nhdp_if, struct netaddr *addr);
+static void _generate_address(struct nhdp_interface *nhdp_if);
 static void _cb_laddr_change(void *);
 static void _cb_2hop_change(void *);
 static void _cb_ll4_cfg_changed(void);
@@ -168,13 +166,13 @@ DECLARE_OONF_PLUGIN(olsrv2_auto_ll4_subsystem);
 /* timer for handling new NHDP neighbors */
 static struct oonf_timer_info _startup_timer_info = {
   .name = "Initial delay until first IPv4 linklocal IPs are generated",
-  .callback = _cb_check_addresses,
+  .callback = _cb_update_timer,
   .periodic = false,
 };
 
 /* NHDP interface extension/listener */
 static struct oonf_class_extension _nhdp_if_extenstion = {
-  .name = "auto ll4 generation",
+  .ext_name = "auto ll4 generation",
   .class_name = NHDP_CLASS_INTERFACE,
   .size = sizeof(struct _nhdp_if_autoll4),
 
@@ -184,7 +182,7 @@ static struct oonf_class_extension _nhdp_if_extenstion = {
 
 /* NHDP link address listener */
 static struct oonf_class_extension _nhdp_laddr_listener = {
-  .name = "auto ll4 generation",
+  .ext_name = "auto ll4 laddr listener",
   .class_name = NHDP_CLASS_LINK_ADDRESS,
 
   .cb_add = _cb_laddr_change,
@@ -193,7 +191,7 @@ static struct oonf_class_extension _nhdp_laddr_listener = {
 
 /* NHDP twohop listener */
 static struct oonf_class_extension _nhdp_2hop_listener = {
-  .name = "auto ll4 generation",
+  .ext_name = "auto ll4 twohop listener",
   .class_name = NHDP_CLASS_LINK_2HOP,
 
   .cb_add = _cb_2hop_change,
@@ -228,8 +226,13 @@ _initiate_shutdown(void) {
   struct nhdp_interface *nhdp_if;
 
   avl_for_each_element(&nhdp_interface_tree, nhdp_if, _node) {
-    _cleanup_nhdp_if_extension(nhdp_if);
+    OONF_DEBUG(LOG_AUTO_LL4, "initiate cleanup if: %s",
+        nhdp_interface_get_coreif(nhdp_if)->data.name);
+    _cb_remove_nhdp_interface(nhdp_if);
   }
+  oonf_class_extension_remove(&_nhdp_if_extenstion);
+  oonf_class_extension_remove(&_nhdp_2hop_listener);
+  oonf_class_extension_remove(&_nhdp_laddr_listener);
 }
 
 /**
@@ -237,66 +240,7 @@ _initiate_shutdown(void) {
  */
 static void
 _cleanup(void) {
-  oonf_class_extension_remove(&_nhdp_2hop_listener);
-  oonf_class_extension_remove(&_nhdp_laddr_listener);
-  oonf_class_extension_remove(&_nhdp_if_extenstion);
-
   oonf_timer_remove(&_startup_timer_info);
-}
-
-/**
- * NHDP interface is going down, cleanup the auto_ll4 parts of it.
- * @param nhdp_if pointer to NHDP interface
- */
-static void
-_cleanup_nhdp_if_extension(struct nhdp_interface *nhdp_if) {
-  struct _nhdp_if_autoll4 *auto_ll4;
-
-  /* get auto linklayer extension */
-  auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
-
-  /* stop running address setting feedback */
-  auto_ll4->os_addr.cb_finished = NULL;
-  os_system_ifaddr_interrupt(&auto_ll4->os_addr);
-
-  /* cleanup address if necessary */
-  netaddr_invalidate(&auto_ll4->auto_ll4_addr);
-  if (auto_ll4->active) {
-    _commit_address(auto_ll4);
-  }
-  netaddr_invalidate(&auto_ll4->os_addr.address);
-  auto_ll4->active = false;
-
-  /* stop update timer */
-  oonf_timer_stop(&auto_ll4->update_timer);
-}
-
-/**
- * Callback triggered when the plugin should check if the autoconfigured
- * address is still okay.
- * @param ptr pointer to NHDP interface
- */
-static void
-_cb_check_addresses(void *ptr) {
-  struct nhdp_interface *nhdp_if;
-  struct _nhdp_if_autoll4 *auto_ll4;
-
-  /* get auto linklayer extension */
-  nhdp_if = ptr;
-  auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
-
-  OONF_DEBUG(LOG_AUTO_LL4, "Trigger processing of auto-configured address");
-
-  /* not startup anymore */
-  auto_ll4->startup = false;
-
-  /* trigger address recalculation */
-  if (auto_ll4->active) {
-    _change_mode(nhdp_if, _AUTO_LL4_ON);
-  }
-  else {
-    _change_mode(nhdp_if, _AUTO_LL4_OFF);
-  }
 }
 
 /**
@@ -305,11 +249,10 @@ _cb_check_addresses(void *ptr) {
  */
 static void
 _cb_add_nhdp_interface(void *ptr) {
-  struct nhdp_interface *nhdp_if;
+  struct nhdp_interface *nhdp_if = ptr;
   struct _nhdp_if_autoll4 *auto_ll4;
 
   /* get auto linklayer extension */
-  nhdp_if = ptr;
   auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
 
   /* initialize static part of routing data */
@@ -330,7 +273,26 @@ _cb_add_nhdp_interface(void *ptr) {
  */
 static void
 _cb_remove_nhdp_interface(void *ptr) {
-  _cleanup_nhdp_if_extension(ptr);
+  struct nhdp_interface *nhdp_if = ptr;
+  struct _nhdp_if_autoll4 *auto_ll4;
+
+  /* get auto linklayer extension */
+  auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
+
+  /* stop running address setting feedback */
+  auto_ll4->os_addr.cb_finished = NULL;
+  os_system_ifaddr_interrupt(&auto_ll4->os_addr);
+
+  /* cleanup address if necessary */
+  netaddr_invalidate(&auto_ll4->auto_ll4_addr);
+  if (auto_ll4->active) {
+    _commit_address(auto_ll4);
+  }
+  netaddr_invalidate(&auto_ll4->os_addr.address);
+  auto_ll4->active = false;
+
+  /* stop update timer */
+  oonf_timer_stop(&auto_ll4->update_timer);
 }
 
 /**
@@ -374,6 +336,146 @@ _cb_address_finished(struct os_system_address *os_addr, int error) {
 }
 
 /**
+ * Callback triggered when a link address of a NHDP neighbor changes
+ * @param ptr pointer to NHDP link address
+ */
+static void
+_cb_laddr_change(void *ptr) {
+  struct nhdp_laddr *laddr = ptr;
+  struct nhdp_interface *nhdp_if;
+  struct _nhdp_if_autoll4 *auto_ll4;
+  struct netaddr_str nbuf;
+
+  nhdp_if = laddr->link->local_if;
+
+  /* get auto linklayer extension */
+  auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
+
+  if (!oonf_timer_is_active(&auto_ll4->update_timer)) {
+    /* request delayed address check */
+    oonf_timer_set(&auto_ll4->update_timer, 1);
+
+    OONF_DEBUG(LOG_AUTO_LL4, "Link address changed: %s",
+        netaddr_to_string(&nbuf, &laddr->link_addr));
+  }
+}
+
+/**
+ * Callback triggered when a two-hop address of a NHDP neighbor changes
+ * @param ptr pointer to NHDP two-hop address
+ */
+static void
+_cb_2hop_change(void *ptr) {
+  struct nhdp_l2hop *l2hop = ptr;
+  struct nhdp_interface *nhdp_if;
+  struct _nhdp_if_autoll4 *auto_ll4;
+  struct netaddr_str nbuf;
+
+  nhdp_if = l2hop->link->local_if;
+
+  /* get auto linklayer extension */
+  auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
+
+  if (!oonf_timer_is_active(&auto_ll4->update_timer)) {
+    /* request delayed address check */
+    oonf_timer_set(&auto_ll4->update_timer, 1);
+
+    OONF_DEBUG(LOG_AUTO_LL4, "2Hop address changed: %s",
+        netaddr_to_string(&nbuf, &l2hop->twohop_addr));
+  }
+}
+
+/**
+ * Callback triggered when the plugin should check if the autoconfigured
+ * address is still okay.
+ * @param ptr pointer to NHDP interface
+ */
+static void
+_cb_update_timer(void *ptr) {
+  struct nhdp_interface *nhdp_if = ptr;
+  struct oonf_interface_data *ifdata;
+  struct _nhdp_if_autoll4 *auto_ll4;
+
+  /* get pointer to interface data */
+  ifdata = &(nhdp_interface_get_coreif(nhdp_if)->data);
+
+  /* ignore loopback */
+  if (ifdata->loopback) {
+    return;
+  }
+
+  /* get auto linklayer extension */
+  auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
+
+  OONF_DEBUG(LOG_AUTO_LL4, "Trigger processing of auto-configured address");
+
+  /* not startup anymore */
+  auto_ll4->startup = false;
+
+  /* trigger address recalculation */
+  _generate_address(nhdp_if);
+}
+
+/**
+ * Generate a new auto-configured address on an interface
+ * @param nhdp_if pointer to NHDP interface
+ */
+static void
+_generate_address(struct nhdp_interface *nhdp_if) {
+  struct _nhdp_if_autoll4 *auto_ll4;
+  struct oonf_interface_data *ifdata;
+  const struct netaddr *ll_ipv6;
+  uint16_t hash;
+  struct netaddr_str nbuf;
+
+  /* get auto linklayer extension */
+  auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
+
+  if (!auto_ll4->active) {
+    /* remove current address if there is one */
+    netaddr_invalidate(&auto_ll4->auto_ll4_addr);
+    _commit_address(auto_ll4);
+    return;
+  }
+
+  /* get IPv6 linklayer address */
+  ifdata = &nhdp_interface_get_coreif(nhdp_if)->data;
+  ll_ipv6 = ifdata->linklocal_v6_ptr;
+
+  if (netaddr_get_address_family(&auto_ll4->auto_ll4_addr) == AF_UNSPEC) {
+    /* generate a new address from the IPv6 linklocal address */
+    hash = _calculate_host_part(ll_ipv6);
+
+    /*
+     * generate the address between
+     * 169.254.1.0 and 169.254.254.255
+     */
+    netaddr_create_host_bin(&auto_ll4->auto_ll4_addr, &NETADDR_IPV4_LINKLOCAL,
+        &hash, sizeof(hash));
+  }
+
+  OONF_DEBUG(LOG_AUTO_LL4, "See if %s is a good auto-configured address for interface %s",
+      netaddr_to_string(&nbuf, &auto_ll4->auto_ll4_addr), ifdata->name);
+
+  /* check for collisions */
+  while (_nhdp_if_has_collision(nhdp_if, &auto_ll4->auto_ll4_addr)) {
+    /* roll up a random address */
+    hash = htons((os_core_random() % (256 * 254)) + 256);
+    netaddr_create_host_bin(&auto_ll4->auto_ll4_addr, &NETADDR_IPV4_LINKLOCAL,
+        &hash, sizeof(hash));
+    OONF_DEBUG(LOG_AUTO_LL4, "Collision, randomizing address!"
+        " See if %s is a good auto-configured address for interface %s",
+        netaddr_to_string(&nbuf, &auto_ll4->auto_ll4_addr), ifdata->name);
+  }
+
+  /* set prefix length */
+  netaddr_set_prefix_length(&auto_ll4->auto_ll4_addr, 16);
+
+  /* set address */
+  _commit_address(auto_ll4);
+}
+
+/**
  * Set/reset an address on a NHDP interface
  * @param auto_ll4 pointer to data structure for auto-configured
  * addresses on a NHDP interface
@@ -395,7 +497,7 @@ _commit_address(struct _nhdp_if_autoll4 *auto_ll4) {
         sizeof(struct netaddr));
     auto_ll4->os_addr.set = true;
 
-    OONF_DEBUG(LOG_AUTO_LL4, "Set address %s on interface %s",
+    OONF_INFO(LOG_AUTO_LL4, "Set address %s on interface %s",
         netaddr_to_string(&nbuf, &auto_ll4->os_addr.address),
         if_indextoname(auto_ll4->os_addr.if_index, ibuf));
   }
@@ -403,11 +505,115 @@ _commit_address(struct _nhdp_if_autoll4 *auto_ll4) {
     /* remove address (and maybe set another one afterwards */
     auto_ll4->os_addr.set = false;
 
-    OONF_DEBUG(LOG_AUTO_LL4, "Reset address %s on interface %s",
+    OONF_INFO(LOG_AUTO_LL4, "Reset address %s on interface %s",
         netaddr_to_string(&nbuf, &auto_ll4->os_addr.address),
         if_indextoname(auto_ll4->os_addr.if_index, ibuf));
   }
   os_system_ifaddr_set(&auto_ll4->os_addr);
+}
+
+/**
+ * Checks if an address would collide with any neighbor on a
+ * NHDP interface, both one- and two-hop.
+ * @param nhdp_if pointer to NHDP interface
+ * @param addr pointer to address that might collide
+ * @return true if address or hash collides with known neighbor,
+ *   false otherwise
+ */
+static bool
+_nhdp_if_has_collision(struct nhdp_interface *nhdp_if, struct netaddr *addr) {
+  struct nhdp_link *lnk;
+  struct nhdp_laddr *laddr;
+  struct nhdp_l2hop *l2hop;
+
+  list_for_each_element(&nhdp_if->_links, lnk, _if_node) {
+    /* check for collision with one-hop neighbor */
+    avl_for_each_element(&lnk->_addresses, laddr, _link_node) {
+      if (_is_address_collision(addr, &laddr->link_addr)) {
+        return true;
+      }
+    }
+
+    avl_for_each_element(&lnk->_2hop, l2hop, _link_node) {
+      if (_is_address_collision(addr, &l2hop->twohop_addr)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Check if an auto-configured address has a collision
+ * @param auto_ll4 pointer to data structure for auto-configured
+ * @param addr address that could collide with auto-configured IP
+ * @return true if address collides, false otherwise
+ */
+static bool
+_is_address_collision(struct netaddr *auto_ll4, struct netaddr *addr) {
+  struct netaddr_str nbuf1, nbuf2;
+  uint16_t hostpart;
+  const char *ptr;
+
+  OONF_DEBUG(LOG_AUTO_LL4, "Check %s for collision with address %s",
+      netaddr_to_string(&nbuf1, auto_ll4), netaddr_to_string(&nbuf2, addr));
+
+  if (netaddr_get_address_family(addr) == AF_INET) {
+    if (netaddr_cmp(auto_ll4, addr) == 0) {
+      OONF_DEBUG(LOG_AUTO_LL4, "Collision with address");
+      return true;
+    }
+  }
+  else {
+    hostpart = _calculate_host_part(addr);
+    ptr = netaddr_get_binptr(auto_ll4);
+    if (memcmp(ptr+2, &hostpart, 2) == 0) {
+      OONF_DEBUG(LOG_AUTO_LL4, "Collision with hashed IPv6!");
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Calculates host part of an auto-configured address
+ * based on a hash value
+ * @param addr address that should be hashed
+ * @return number between 256 (.1.0) and 65279 (.254.255)
+ */
+uint16_t
+_calculate_host_part(const struct netaddr *addr)
+{
+  uint32_t hash, i;
+  const char *key;
+  size_t len;
+
+  key = netaddr_get_binptr(addr);
+  len = netaddr_get_binlength(addr);
+
+  /*
+   * step 1: calculate Jenkins hash
+   *
+   * This is no cryptographic secure has, it doesn't need
+   * to be. Its just to make sure all 6 byte of the MAC
+   * address are the source of the two-byte host part
+   * of the auto-configuredIP.
+   */
+  for(hash = i = 0; i < len; ++i)
+  {
+    hash += key[i];
+    hash += (hash << 10);
+    hash ^= (hash >> 6);
+  }
+  hash += (hash << 3);
+  hash ^= (hash >> 11);
+  hash += (hash << 15);
+
+  hash = 0;
+
+  /* step 2: calculate host part of linklocal address */
+  return htons((hash % (254 * 256)) + 256);
 }
 
 /**
@@ -454,194 +660,12 @@ _change_mode(struct nhdp_interface *nhdp_if, enum _auto_ll4_mode new_mode) {
     auto_ll4->active = false;
   }
 
+  if (!oonf_timer_is_active(&auto_ll4->update_timer)) {
+    oonf_timer_set(&auto_ll4->update_timer, 1);
+  }
+
   OONF_DEBUG(LOG_AUTO_LL4, "%s auto-configured address on interface %s",
       auto_ll4->active ? "Set" : "Reset", ifdata->name);
-
-  if (!auto_ll4->active) {
-    /* remove current address if there is one */
-    netaddr_invalidate(&auto_ll4->auto_ll4_addr);
-    _commit_address(auto_ll4);
-  }
-  else {
-    /* generate an IPv4 linklocal address */
-    _generate_address(nhdp_if, auto_ll4);
-  }
-}
-
-/**
- * Calculates host part of an auto-configured address
- * based on a hash value
- * @param key pointer to data that should be hashed
- * @param len length of data that should be hashed
- * @return number between 256 (.1.0) and 65279 (.254.255)
- */
-uint16_t
-_calculate_host_part(const char *key, size_t len)
-{
-  uint32_t hash, i;
-
-  /*
-   * step 1: calculate Jenkins hash
-   *
-   * This is no cryptographic secure has, it doesn't need
-   * to be. Its just to make sure all 6 byte of the MAC
-   * address are the source of the two-byte host part
-   * of the auto-configuredIP.
-   */
-  for(hash = i = 0; i < len; ++i)
-  {
-    hash += key[i];
-    hash += (hash << 10);
-    hash ^= (hash >> 6);
-  }
-  hash += (hash << 3);
-  hash ^= (hash >> 11);
-  hash += (hash << 15);
-
-  /* step 2: calculate host part of linklocal address */
-  return htons((hash % (254 * 256)) + 256);
-}
-
-/**
- * Check if an auto-configured address has a collision
- * @param auto_ll4 pointer to data structure for auto-configured
- * @param hash hash value that could collide with auto-configured IP
- * @param addr address that could collide with auto-configured IP
- * @return true if address collides, false otherwise
- */
-static bool
-_is_address_collision(struct netaddr *auto_ll4, uint16_t hash, struct netaddr *addr) {
-  if (netaddr_get_address_family(addr) == AF_INET) {
-    if (netaddr_cmp(auto_ll4, addr) == 0) {
-      return true;
-    }
-  }
-  else if(hash == _calculate_host_part(
-      netaddr_get_binptr(addr), netaddr_get_binlength(addr))) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Checks if an address would collide with any neighbor on a
- * NHDP interface, both one- and two-hop.
- * @param nhdp_if pointer to NHDP interface
- * @param addr pointer to address that might collide
- * @param hash pointer to hash of address that could collide
- * @return true if address or hash collides with known neighbor,
- *   false otherwise
- */
-static bool
-_nhdp_if_has_collision(struct nhdp_interface *nhdp_if, struct netaddr *addr, uint16_t hash) {
-  struct nhdp_link *lnk;
-  struct nhdp_laddr *laddr;
-  struct nhdp_l2hop *l2hop;
-
-  list_for_each_element(&nhdp_if->_links, lnk, _if_node) {
-    /* check for collision with one-hop neighbor */
-    avl_for_each_element(&lnk->_addresses, laddr, _link_node) {
-      if (_is_address_collision(addr, hash, &laddr->link_addr)) {
-        return true;
-      }
-    }
-
-    avl_for_each_element(&lnk->_2hop, l2hop, _link_node) {
-      if (_is_address_collision(addr, hash, &l2hop->twohop_addr)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-/**
- * Generate a new auto-configured address on an interface
- * @param nhdp_if pointer to NHDP interface
- * @param auto_ll4 pointer to auto-configure data within NHDP interface
- */
-static void
-_generate_address(struct nhdp_interface *nhdp_if,
-    struct _nhdp_if_autoll4 *auto_ll4) {
-  struct oonf_interface_data *ifdata;
-  const struct netaddr *ll_ipv6;
-  uint16_t hash;
-  struct netaddr_str nbuf;
-
-  ifdata = &nhdp_interface_get_coreif(nhdp_if)->data;
-  ll_ipv6 = ifdata->linklocal_v6_ptr;
-
-  if (netaddr_get_address_family(&auto_ll4->auto_ll4_addr) == AF_UNSPEC) {
-    /* generate a new address from the IPv6 linklocal address */
-    hash = _calculate_host_part(
-        netaddr_get_binptr(ll_ipv6), netaddr_get_binlength(ll_ipv6));
-
-    /*
-     * generate the address between
-     * 169.254.1.0/16 and 169.254.254.255/16
-     */
-    netaddr_create_host_bin(&auto_ll4->auto_ll4_addr, &NETADDR_IPV4_LINKLOCAL,
-        &hash, sizeof(hash));
-    netaddr_set_prefix_length(&auto_ll4->auto_ll4_addr, 16);
-  }
-
-  OONF_DEBUG(LOG_AUTO_LL4, "See if %s is a good auto-configured address for interface %s",
-      netaddr_to_string(&nbuf, &auto_ll4->auto_ll4_addr), ifdata->name);
-
-  /* check for collisions */
-  while (_nhdp_if_has_collision(nhdp_if, &auto_ll4->auto_ll4_addr, hash)) {
-    /* roll up a random address */
-    hash = htons((os_core_random() % (256 * 254)) + 256);
-    netaddr_create_host_bin(&auto_ll4->auto_ll4_addr, &NETADDR_IPV4_LINKLOCAL,
-        &hash, sizeof(hash));
-    OONF_DEBUG(LOG_AUTO_LL4, "Collision, randomizing address!"
-        " See if %s is a good auto-configured address for interface %s",
-        netaddr_to_string(&nbuf, &auto_ll4->auto_ll4_addr), ifdata->name);
-  }
-
-  /* set address */
-  _commit_address(auto_ll4);
-}
-
-/**
- * Callback triggered when a link address of a NHDP neighbor changes
- * @param ptr pointer to NHDP link address
- */
-static void
-_cb_laddr_change(void *ptr) {
-  struct nhdp_laddr *laddr;
-  struct nhdp_interface *nhdp_if;
-  struct _nhdp_if_autoll4 *auto_ll4;
-
-  laddr = ptr;
-  nhdp_if = laddr->link->local_if;
-  auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
-
-  if (!oonf_timer_is_active(&auto_ll4->update_timer)) {
-    /* request delayed address check */
-    oonf_timer_set(&auto_ll4->update_timer, 1);
-  }
-}
-
-/**
- * Callback triggered when a two-hop address of a NHDP neighbor changes
- * @param ptr pointer to NHDP two-hop address
- */
-static void
-_cb_2hop_change(void *ptr) {
-  struct nhdp_l2hop *l2hop;
-  struct nhdp_interface *nhdp_if;
-  struct _nhdp_if_autoll4 *auto_ll4;
-
-  l2hop = ptr;
-  nhdp_if = l2hop->link->local_if;
-  auto_ll4 = oonf_class_get_extension(&_nhdp_if_extenstion, nhdp_if);
-
-  if (!oonf_timer_is_active(&auto_ll4->update_timer)) {
-    /* request delayed address check */
-    oonf_timer_set(&auto_ll4->update_timer, 1);
-  }
 }
 
 /**
