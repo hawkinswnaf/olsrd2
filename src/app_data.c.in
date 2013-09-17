@@ -50,7 +50,6 @@ static struct oonf_appdata _appdata = {
   .help_prefix = "${OONF_HELP_PREFIX}",
   .help_suffix = "${OONF_HELP_SUFFIX}",
 
-  .default_config = "${OONF_DEFAULT_CONF}",
   .default_lockfile = OS_CORE_LOCKFILE_FOLDER "${OONF_APP_LIBPREFIX}.lock",
   
   .git_commit = "${OONF_APP_GIT}",

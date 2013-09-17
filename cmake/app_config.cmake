@@ -42,10 +42,6 @@ set (OONF_EXE olsrd2)
 # set Application library prefix
 set (OONF_APP_LIBPREFIX "olsrd2")
 
-# set default configuration file
-set (OONF_DEFAULT_CONF "/etc/${OONF_EXE}/${OONF_EXE}.conf" CACHE FILEPATH
-     "Default position of configuration file")
-
 # setup custom text before and after default help message
 set (OONF_HELP_PREFIX "OLSRv2 routing agent\\\\n")
 set (OONF_HELP_SUFFIX "")
