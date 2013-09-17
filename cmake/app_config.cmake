@@ -73,7 +73,7 @@ set (OONF_NEED_PACKETBB true)
 
 # use default static plugins if custom variable not set
 IF (NOT OONF_CUSTOM_STATIC_PLUGINS OR OONF_CUSTOM_STATIC_PLUGINS STREQUAL "")
-	set (OONF_STATIC_PLUGINS "cfgparser_compact cfgio_file ff_ett neighbor_probing nl80211_listener eth_listener")
+	set (OONF_STATIC_PLUGINS "cfgparser_compact cfgio_file ff_ett neighbor_probing nl80211_listener eth_listener auto_ll4")
 ELSE ()
 	set (OONF_STATIC_PLUGINS "${OONF_CUSTOM_STATIC_PLUGINS}")
 ENDIF ()
