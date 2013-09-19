@@ -13,7 +13,7 @@ PKG_RELEASE=$(PKG_SOURCE_VERSION)
 #PKG_SOURCE_VERSION:=$(PKG_REV)
 CMAKE_INSTALL:=1
 
-PKG_BUILD_DEPENDS:=+oonf-api-git
+PKG_BUILD_DEPENDS:=oonf-api-git
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
