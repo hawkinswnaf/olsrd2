@@ -13,6 +13,8 @@ PKG_RELEASE=$(PKG_SOURCE_VERSION)
 #PKG_SOURCE_VERSION:=$(PKG_REV)
 CMAKE_INSTALL:=1
 
+PKG_BUILD_DEPENDS:=+oonf-api-git
+
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
 
@@ -37,7 +39,6 @@ define Package/olsrd2-git
 	$(call Package/olsrd2-git/template)
 	TITLE:=OLSRd V2 Routing Agent
 	DEPENDS:=+ldconfig +librt +libnl-tiny
-	PKG_BUILD_DEPENDS:=+oonf-api-git
 endef
 
 define Package/olsrd2-git-plugin-ff-ett
